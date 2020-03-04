@@ -4,8 +4,36 @@ from io import StringIO
 from typing import Iterator, Tuple, Union, Optional
 
 
-class Token(ABC):
+class _AbstractToken(ABC):
 
+    @classmethod
+    @abstractmethod
+    def matches(cls, tkn: str) -> bool:
+        raise NotImplementedError
+
+
+class _EnumMeta(type):
+
+    def __init__(cls, *args, **kwargs):
+        super(_EnumMeta, cls).__init__(*args, **kwargs)
+        cls._names = [
+            attr_name for attr_name in dir(cls)
+            if attr_name.upper() == attr_name and not attr_name.startswith('_')
+        ]
+        cls._items = {
+            attr_name: getattr(cls, attr_name) for attr_name in cls._names
+        }
+        cls._values = [getattr(cls, attr_name) for attr_name in cls._names]
+
+
+class _AbstractEnumToken(metaclass=_EnumMeta):
+
+    @classmethod
+    def matches(cls, tkn: str) -> bool:
+        return tkn in cls._values
+
+
+class Token(object):
     def __getattr__(self, attr_name):
         if attr_name.startswith('is_'):
             cls_name = attr_name[3:].split('_').title().join('')
@@ -13,15 +41,10 @@ class Token(ABC):
 
         raise AttributeError('{} has no attribute {}'.format(self, attr_name))
 
-    @classmethod
-    @abstractmethod
-    def matches(cls, tkn: str) -> bool:
-        raise NotImplementedError
-
     def __init__(self, token_value: str):
         if not self.matches(token_value):
             raise ValueError(
-                '{} is not a valid {}'.format(
+                '"{}" is not a valid {}'.format(
                     token_value, self.__class__.__name__
                 )
             )
@@ -34,28 +57,7 @@ class Token(ABC):
         return not(self == other)
 
 
-class _Enum(type):
-
-    def __init__(cls, *args, **kwargs):
-        super(_Enum, cls).__init__(*args, **kwargs)
-        cls._names = [
-            attr_name for attr_name in dir(cls)
-            if attr_name.upper() == attr_name and not attr_name.startswith('_')
-        ]
-        cls._items = {
-            attr_name: getattr(cls, attr_name) for attr_name in cls._names
-        }
-        cls._values = [getattr(cls, attr_name) for attr_name in cls._names]
-
-
-class _EnumToken(Token, metaclass=_Enum):
-
-    @classmethod
-    def matches(cls, tkn: str) -> bool:
-        return tkn in cls._values
-
-
-class Punctuation(_EnumToken):
+class Punctuation(Token, _AbstractEnumToken):
     PAREN_OPEN = "("
     PAREN_CLOSE = ")"
     BRACKET_OPEN = "["
@@ -69,7 +71,7 @@ class Punctuation(_EnumToken):
     SEMI_COLON = ";"
 
 
-class Operator(_EnumToken):
+class Operator(Token, _AbstractEnumToken):
     MUL = "*"
     DIV = "/"
     ADD = "+"
@@ -84,7 +86,7 @@ class Operator(_EnumToken):
     OR = "|"
 
 
-class Keyword(_EnumToken):
+class Keyword(Token, _AbstractEnumToken):
     ARRAY = "array"
     BREAK = "break"
     DO = "do"
@@ -104,22 +106,22 @@ class Keyword(_EnumToken):
     WHILE = "while"
 
 
-class Identifier(Token):
+class Identifier(Token, _AbstractToken):
     @classmethod
     def matches(cls, tkn: str) -> bool:
         return bool(re.match(r'[a-zA-Z][a-zA-Z0-9_]*', tkn))
 
 
-class IntegerLiteral(Token):
+class IntegerLiteral(Token, _AbstractToken):
     @classmethod
     def matches(cls, tkn: str) -> bool:
         return bool(re.match(r'[0-9]+', tkn))
 
 
-class StringLiteral(Token):
+class StringLiteral(Token, _AbstractToken):
     @classmethod
     def matches(cls, tkn: str) -> bool:
-        return bool(re.match(r'^".*"$', tkn))
+        return True
 
 
 class TokenizerException(Exception):
@@ -137,7 +139,7 @@ class Tokenizer(object):
 
     @property
     def _program_without_comments(self) -> str:
-        return re.sub(r'/\*.*\*/', self._program, '')
+        return re.sub(r'/\*.*\*/', '', self._program)
 
     def next_token(self) -> Optional[Token]:
         if self._tokens is None:
@@ -161,11 +163,10 @@ class Tokenizer(object):
 
     def _yield_tokens(self) -> Iterator[Token]:
         reader = StringIO(self._program_without_comments)
-        char = None
+        char = reader.read(1)
         while char != '':
-            char = reader.read(1)
-
             if re.match(r'\s', char):
+                char = reader.read(1)
                 continue
 
             if char == self._DOUBLEQUOTE:
@@ -179,6 +180,8 @@ class Tokenizer(object):
                     char, reader
                 )
                 yield token
+
+            char = reader.read(1)
 
     def _read_string(self, reader: StringIO) -> Tuple[StringLiteral, StringIO]:
         token_val = ''
@@ -228,9 +231,11 @@ class Tokenizer(object):
         Keyword tokens match the same pattern as identifier tokens, so we must
         give preference to keywords (which are, after all, reserved).
         """
+        char = first_char
         token_val = first_char
-        while re.match(r'[a-zA-Z0-9_]', token_val):
-            token_val += reader.read(1)
+        while re.match(r'[a-zA-Z0-9_]', char):
+            char = reader.read(1)
+            token_val += char
 
         reader.seek(reader.tell() - 1)
         token_val = token_val[:-1]
@@ -262,4 +267,4 @@ class Tokenizer(object):
             if Punctuation.matches(short_token):
                 return Punctuation(short_token), reader
             else:
-                return Operator(long_token), reader
+                return Operator(short_token), reader
