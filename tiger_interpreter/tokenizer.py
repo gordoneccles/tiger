@@ -1,7 +1,7 @@
 import re
 from abc import abstractmethod, ABC
 from io import StringIO
-from typing import Iterator, Tuple, Union
+from typing import Iterator, Tuple, Union, Optional
 
 
 class Token(ABC):
@@ -34,10 +34,10 @@ class Token(ABC):
         return not(self == other)
 
 
-class Enum(type):
+class _Enum(type):
 
     def __init__(cls, *args, **kwargs):
-        super(Enum, cls).__init__(*args, **kwargs)
+        super(_Enum, cls).__init__(*args, **kwargs)
         cls._names = [
             attr_name for attr_name in dir(cls)
             if attr_name.upper() == attr_name and not attr_name.startswith('_')
@@ -48,14 +48,14 @@ class Enum(type):
         cls._values = [getattr(cls, attr_name) for attr_name in cls._names]
 
 
-class EnumToken(Token, metaclass=Enum):
+class _EnumToken(Token, metaclass=_Enum):
 
     @classmethod
     def matches(cls, tkn: str) -> bool:
         return tkn in cls._values
 
 
-class Punctuation(EnumToken):
+class Punctuation(_EnumToken):
     PAREN_OPEN = "("
     PAREN_CLOSE = ")"
     BRACKET_OPEN = "["
@@ -69,7 +69,7 @@ class Punctuation(EnumToken):
     SEMI_COLON = ";"
 
 
-class Operator(EnumToken):
+class Operator(_EnumToken):
     MUL = "*"
     DIV = "/"
     ADD = "+"
@@ -84,7 +84,7 @@ class Operator(EnumToken):
     OR = "|"
 
 
-class Keyword(EnumToken):
+class Keyword(_EnumToken):
     ARRAY = "array"
     BREAK = "break"
     DO = "do"
@@ -132,12 +132,34 @@ class Tokenizer(object):
 
     def __init__(self, program: str):
         self._program = program
+        self._tokens = None
+        self._next_token_idx = None
 
     @property
     def _program_without_comments(self) -> str:
         return re.sub(r'/\*.*\*/', self._program, '')
 
-    def yield_tokens(self) -> Iterator[Token]:
+    def next_token(self) -> Optional[Token]:
+        if self._tokens is None:
+            self._tokens = list(self._yield_tokens())
+            self._next_token_idx = 0
+        elif self._next_token_idx >= len(self._tokens):
+            return None
+        else:
+            tkn = self._tokens[self._next_token_idx]
+            self._next_token_idx += 1
+            return tkn
+
+    def rewind(self, n: int = 1):
+        if self._next_token_idx - n <= 0:
+            raise TokenizerException(
+                'Cannot rewind {} tokens, have only read {}'.format(
+                    n, self._next_token_idx
+                )
+            )
+        self._next_token_idx -= n
+
+    def _yield_tokens(self) -> Iterator[Token]:
         reader = StringIO(self._program_without_comments)
         char = None
         while char != '':
