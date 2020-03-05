@@ -35,6 +35,10 @@ class _AbstractEnumToken(metaclass=_EnumMeta):
 
 class Token(object):
     def __getattr__(self, attr_name):
+        """
+        Rather than having to do isinstance(token, SomeToken), this allows
+        for token.is_some_token
+        """
         if attr_name.startswith('is_'):
             cls_name = attr_name[3:].split('_').title().join('')
             return self.__class__.__name__ == cls_name
@@ -139,18 +143,19 @@ class Tokenizer(object):
 
     @property
     def _program_without_comments(self) -> str:
-        return re.sub(r'/\*.*\*/', '', self._program)
+        return re.sub(r'/\*.*\*/', '', self._program).strip()
 
     def next_token(self) -> Optional[Token]:
         if self._tokens is None:
             self._tokens = list(self._yield_tokens())
             self._next_token_idx = 0
-        elif self._next_token_idx >= len(self._tokens):
+
+        if self._next_token_idx >= len(self._tokens):
             return None
-        else:
-            tkn = self._tokens[self._next_token_idx]
-            self._next_token_idx += 1
-            return tkn
+
+        tkn = self._tokens[self._next_token_idx]
+        self._next_token_idx += 1
+        return tkn
 
     def rewind(self, n: int = 1):
         if self._next_token_idx - n <= 0:
@@ -170,20 +175,18 @@ class Tokenizer(object):
                 continue
 
             if char == self._DOUBLEQUOTE:
-                token, reader = self._read_string(reader)
+                token = self._read_string(reader)
                 yield token
             elif re.match(r'[a-zA-Z]', char):
-                token, reader = self._read_identifier_or_keyword(char, reader)
+                token = self._read_identifier_or_keyword(char, reader)
                 yield token
             else:
-                token, reader = self._read_punctuation_or_operator(
-                    char, reader
-                )
+                token = self._read_punctuation_or_operator(char, reader)
                 yield token
 
             char = reader.read(1)
 
-    def _read_string(self, reader: StringIO) -> Tuple[StringLiteral, StringIO]:
+    def _read_string(self, reader: StringIO) -> StringLiteral:
         token_val = ''
         escape_map = {
             '"': '"',
@@ -200,6 +203,9 @@ class Tokenizer(object):
                     token_val += escape_map[next_char]
                 elif next_char == '^':
                     # TODO: control characters
+                    raise NotImplementedError()
+                elif next_char == 's':
+                    # TODO: whitespace ignore for multiline strings
                     raise NotImplementedError()
                 else:
                     ascii_code = next_char
@@ -220,34 +226,34 @@ class Tokenizer(object):
 
                     token_val += chr(ascii_code)
             elif char == self._DOUBLEQUOTE:
-                return StringLiteral(token_val), reader
+                return StringLiteral(token_val)
             else:
                 token_val += char
 
     def _read_identifier_or_keyword(
-        self, first_char, reader: StringIO
-    ) -> Tuple[Union[Identifier, Keyword], StringIO]:
+        self, char: str, reader: StringIO
+    ) -> Union[Identifier, Keyword]:
         """
         Keyword tokens match the same pattern as identifier tokens, so we must
         give preference to keywords (which are, after all, reserved).
         """
-        char = first_char
-        token_val = first_char
+        token_val = char
+        char = reader.read(1)
         while re.match(r'[a-zA-Z0-9_]', char):
-            char = reader.read(1)
             token_val += char
+            char = reader.read(1)
 
-        reader.seek(reader.tell() - 1)
-        token_val = token_val[:-1]
+        if char != '':  # not end of file
+            reader.seek(reader.tell() - 1)
 
         if Keyword.matches(token_val):
-            return Keyword(token_val), reader
+            return Keyword(token_val)
         else:
-            return Identifier(token_val), reader
+            return Identifier(token_val)
 
     def _read_punctuation_or_operator(
         self, first_char, reader: StringIO
-    ) -> Tuple[Union[Punctuation, Operator], StringIO]:
+    ) -> Union[Punctuation, Operator]:
         """
         Punctuation and operators can be 1-2 characters. Because some 1-char
         tokens are a prefix of a 2-char token (e.g. "<" and "<>"), we try
@@ -257,14 +263,16 @@ class Tokenizer(object):
         their tokens share a prefix.
         """
         short_token = first_char
-        long_token = short_token + reader.read(1)
+        next_char = reader.read(1)
+        long_token = short_token + next_char
         if Punctuation.matches(long_token):
-            return Punctuation(long_token), reader
+            return Punctuation(long_token)
         elif Operator.matches(long_token):
-            return Operator(long_token), reader
+            return Operator(long_token)
         else:
-            reader.seek(reader.tell() - 1)
+            if next_char != '':  # not end of file
+                reader.seek(reader.tell() - 1)
             if Punctuation.matches(short_token):
-                return Punctuation(short_token), reader
+                return Punctuation(short_token)
             else:
-                return Operator(short_token), reader
+                return Operator(short_token)
