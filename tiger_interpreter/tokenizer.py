@@ -40,7 +40,7 @@ class Token(object):
         for token.is_some_token
         """
         if attr_name.startswith('is_'):
-            cls_name = attr_name[3:].split('_').title().join('')
+            cls_name = attr_name[3:].title().replace('_', '')
             return self.__class__.__name__ == cls_name
 
         raise AttributeError('{} has no attribute {}'.format(self, attr_name))
@@ -55,10 +55,15 @@ class Token(object):
         self.value = token_value
 
     def __eq__(self, other):
+        if isinstance(other, str):
+            return self.value == other
         return type(self) == type(other) and self.value == other.value
 
     def __ne__(self, other):
         return not(self == other)
+
+    def __repr__(self):
+        return '{}({})'.format(self.__class__.__name__, self.value)
 
 
 class Punctuation(Token, _AbstractEnumToken):

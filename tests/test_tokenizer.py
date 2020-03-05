@@ -2,7 +2,8 @@ import pytest
 
 from tiger_interpreter.tokenizer import (
     Tokenizer, Identifier, Punctuation, StringLiteral, Keyword, Operator,
-    TokenizerException)
+    TokenizerException
+)
 
 hello_world = """
 /* Hello-world */
