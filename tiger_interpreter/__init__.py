@@ -1,15 +1,17 @@
-
-prog = '''
-/* Hello-world */
-print("Hello, World!\n")
-'''
+from tiger_interpreter.tokenizer import TigerTokenizer
+from tiger_interpreter.parser import TigerParser
+# form tiger_interpreter.interpreter import TigerInterpreter
 
 
 class Tiger(object):
 
-    def execute(self, program):
-        pass
+    def __init__(self, program_file):
+        self._prog_file = program_file
 
-
-if __name__ == '__main__':
-    Tiger().execute(prog)
+    def execute(self):
+        prog_data = open(self._prog_file, 'r').read()
+        tknizer = TigerTokenizer(prog_data)
+        program = TigerParser().parse(tknizer)
+        # TODO
+        # interpreter = TigerInterpreter(program)
+        # interpreter.execute()

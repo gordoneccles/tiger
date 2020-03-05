@@ -1,7 +1,7 @@
 from pytest import fixture
 
 from tiger_interpreter.parser import TigerParser
-from tiger_interpreter.tokenizer import Tokenizer
+from tiger_interpreter.tokenizer import TigerTokenizer
 
 
 @fixture
@@ -14,7 +14,7 @@ def hello_world_tokenizer():
         hello()
     end
     """
-    return Tokenizer(let_hello_world)
+    return TigerTokenizer(let_hello_world)
 
 
 class TestParser(object):

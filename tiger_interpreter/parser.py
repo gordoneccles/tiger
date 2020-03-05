@@ -3,7 +3,7 @@ from abc import ABC
 from typing import List, Union, Optional
 
 from tiger_interpreter.tokenizer import (
-    Token, Keyword, Tokenizer, Punctuation, Operator,
+    Token, Keyword, TigerTokenizer, Punctuation, Operator,
 )
 
 """
@@ -273,7 +273,7 @@ class TigerParser(object):
 
     @staticmethod
     def _get_type_annotation(
-        tokenizer: Tokenizer
+        tokenizer: TigerTokenizer
     ) -> Optional[TypeIdentifierNode]:
         """
         Matches the common, optional type annotation pattern => ': tyId'
@@ -286,7 +286,7 @@ class TigerParser(object):
             tokenizer.rewind()
             return None
 
-    def parse(self, tokenizer: Tokenizer) -> Program:
+    def parse(self, tokenizer: TigerTokenizer) -> Program:
         next_token = tokenizer.next_token()
         tokenizer.rewind()
         if next_token == Keyword.LET:
@@ -295,7 +295,7 @@ class TigerParser(object):
             # TODO: support programs not wrapped in a let (ie. seq programs)
             raise NotImplementedError()
 
-    def _parse_expression(self, tokenizer: Tokenizer) -> Expression:
+    def _parse_expression(self, tokenizer: TigerTokenizer) -> Expression:
         """
         exp → lValue | nil | intLit | stringLit
             | seqExp | negation | callExp | infixExp
@@ -316,7 +316,7 @@ class TigerParser(object):
         else:
             raise NotImplementedError('TODO')
 
-    def _parse_let_expression(self, tokenizer: Tokenizer) -> LetExpNode:
+    def _parse_let_expression(self, tokenizer: TigerTokenizer) -> LetExpNode:
         """
         letExp → let dec+ in exp∗; end
         """
@@ -347,7 +347,7 @@ class TigerParser(object):
         return LetExpNode(decs, exps)
 
     def _parse_if_expression(
-        self, tokenizer: Tokenizer
+        self, tokenizer: TigerTokenizer
     ) -> Union[IfThenExpression, IfThenElseExpression]:
         """
         ifthenelse → if exp then exp else exp
@@ -366,7 +366,9 @@ class TigerParser(object):
         else:
             return IfThenExpression(cond_exp, body_exp)
 
-    def _parse_type_declaration(self, tokenizer: Tokenizer) -> TypeDecNode:
+    def _parse_type_declaration(
+        self, tokenizer: TigerTokenizer
+    ) -> TypeDecNode:
         """
         tyDec → type tyId = ty
         """
@@ -392,19 +394,21 @@ class TigerParser(object):
             )
         return TypeDecNode(TypeIdentifierNode(id_token.value), type_node)
 
-    def _parse_array_type(self, tokenizer: Tokenizer) -> ArrayTypeNode:
+    def _parse_array_type(self, tokenizer: TigerTokenizer) -> ArrayTypeNode:
         """
         arrTy → array of tyId
         """
         return ArrayTypeNode()
 
-    def _parse_record_type(self, tokenizer: Tokenizer) -> RecordTypeNode:
+    def _parse_record_type(self, tokenizer: TigerTokenizer) -> RecordTypeNode:
         """
         recTy → { fieldDec∗, }
         """
         return RecordTypeNode()
 
-    def _parse_func_declaration(self, tokenizer: Tokenizer) -> FuncDecNode:
+    def _parse_func_declaration(
+        self, tokenizer: TigerTokenizer
+    ) -> FuncDecNode:
         """
         funDec → function id ( fieldDec∗, ) = exp
                 | function id ( fieldDec∗, ) : tyId = exp
@@ -432,7 +436,7 @@ class TigerParser(object):
             type_identifier=type_id_node,
         )
 
-    def _parse_var_declaration(self, tokenizer: Tokenizer) -> VarDecNode:
+    def _parse_var_declaration(self, tokenizer: TigerTokenizer) -> VarDecNode:
         """
         varDec → var id := exn
                 | var id : tyId := exp
@@ -453,7 +457,9 @@ class TigerParser(object):
             type_identifier=type_id,
         )
 
-    def _parse_field_declaration(self, tokenizer: Tokenizer) -> FieldDecNode:
+    def _parse_field_declaration(
+        self, tokenizer: TigerTokenizer
+    ) -> FieldDecNode:
         """
         fieldDec → id : tyId
         """

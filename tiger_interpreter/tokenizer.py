@@ -137,7 +137,7 @@ class TokenizerException(Exception):
     pass
 
 
-class Tokenizer(object):
+class TigerTokenizer(object):
     _BACKSLASH = "\\"
     _DOUBLEQUOTE = '"'
 
