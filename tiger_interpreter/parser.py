@@ -166,8 +166,42 @@ class IfThenElseExpression(Expression):
         super().__init__(condition, consequent, alternative)
 
 
-class NilExpNode(Expression):
+class WhileExpression(Expression):
+    def __ini__(
+        self,
+        condition: Expression,
+        consequent: Expression,
+    ):
+        super().__init__(condition, consequent)
+
+
+class ForExpression(Expression):
+    def __ini__(
+        self,
+        identfier: IdentifierNode,
+        lower_bound: Expression,
+        upper_bound: Expression,
+        body: Expression,
+    ):
+        super().__init__(identfier, lower_bound, upper_bound, body)
+
+
+class BreakExpression(Expression):
     pass
+
+
+class NilExpression(Expression):
+    pass
+
+
+class NegationExpression(Expression):
+    def __init__(self, expression):
+        super().__init__(expression)
+
+
+class SeqExpression(Expression):
+    def __init__(self, expressions):
+        super().__init__(expressions)
 
 
 class IntegerLiteralExpNode(Expression):
@@ -278,8 +312,8 @@ class TigerParser(object):
         """
         Matches the common, optional type annotation pattern => ': tyId'
         """
-        if tokenizer.next_token() == Punctuation.COLON:
-            type_id_token = tokenizer.next_token()
+        if tokenizer.next() == Punctuation.COLON:
+            type_id_token = tokenizer.next()
             _assert_identifier(type_id_token)
             return TypeIdentifierNode(type_id_token)
         else:
@@ -287,7 +321,7 @@ class TigerParser(object):
             return None
 
     def parse(self, tokenizer: TigerTokenizer) -> Program:
-        next_token = tokenizer.next_token()
+        next_token = tokenizer.next()
         tokenizer.rewind()
         if next_token == Keyword.LET:
             return Program(self._parse_let_expression(tokenizer))
@@ -302,17 +336,38 @@ class TigerParser(object):
             | arrCreate | recCreate | assignment
             | ifThenElse | ifThen | whileExp | forExp
             | break | letExp
+
+        TODO:
+            infixExp → exp infixOp exp
+            arrCreate → tyId [ exp ] of exp
+            recCreate → tyId { fieldCreate∗, }
+            callExp → id ( exp∗, )
+            assignment → lValue := exp
+            lValue → id | subscript | fieldExp
+                subscript → lValue [ exp ]
+                fieldExp → lValue . id
         """
-        next_token = tokenizer.next_token()
-        if next_token == Keyword.NIL:
-            return NilExpNode()
-        elif next_token.is_integer_literal:
-            return IntegerLiteralExpNode(next_token.value)
+        next_token = tokenizer.peek()
+        if next_token.is_integer_literal:
+            return IntegerLiteralExpNode(tokenizer.next().value)
         elif next_token.is_string_literal:
-            return StringLiteralExpNode(next_token.value)
+            return StringLiteralExpNode(tokenizer.next().value)
+        elif next_token == Keyword.NIL:
+            return self._parse_nil_expression(tokenizer)
+        elif next_token == Keyword.BREAK:
+            return self._parse_break_expression(tokenizer)
         elif next_token == Keyword.IF:
-            tokenizer.rewind()
             return self._parse_if_expression(tokenizer)
+        elif next_token == Keyword.WHILE:
+            return self._parse_while_expression(tokenizer)
+        elif next_token == Keyword.FOR:
+            return self._parse_for_expression(tokenizer)
+        elif next_token == Keyword.LET:
+            return self._parse_let_expression(tokenizer)
+        elif next_token == Operator.SUB:
+            return self._parse_negation_expression(tokenizer)
+        elif next_token == Punctuation.PAREN_OPEN:
+            return self._parse_seq_expression(tokenizer)
         else:
             raise NotImplementedError('TODO')
 
@@ -320,8 +375,8 @@ class TigerParser(object):
         """
         letExp → let dec+ in exp∗; end
         """
-        _assert_tkn_val(tokenizer.next_token(), Keyword.LET)
-        next_token = tokenizer.next_token()
+        _assert_tkn_val(tokenizer.next(), Keyword.LET)
+        next_token = tokenizer.next()
         tokenizer.rewind()
         decs = []
         while next_token in [Keyword.TYPE, Keyword.FUNCTION, Keyword.VAR]:
@@ -332,17 +387,17 @@ class TigerParser(object):
             else:
                 dec_node = self._parse_var_declaration(tokenizer)
             decs.append(dec_node)
-            next_token = tokenizer.next_token()
+            next_token = tokenizer.next()
 
-        _assert_tkn_val(tokenizer.next_token(), Keyword.IN)
+        _assert_tkn_val(tokenizer.next(), Keyword.IN)
 
-        next_token = tokenizer.next_token()
+        next_token = tokenizer.next()
         exps = []
         while next_token != Keyword.END:
             exps.append(self._parse_expression(tokenizer))
-            next_token = tokenizer.next_token()
+            next_token = tokenizer.next()
             if next_token == Punctuation.SEMI_COLON:
-                next_token = tokenizer.next_token()
+                next_token = tokenizer.next()
 
         return LetExpNode(decs, exps)
 
@@ -353,11 +408,11 @@ class TigerParser(object):
         ifthenelse → if exp then exp else exp
         ifthen → if exp then exp
         """
-        _assert_tkn_val(tokenizer.next_token(), Keyword.IF)
+        _assert_tkn_val(tokenizer.next(), Keyword.IF)
         cond_exp = self._parse_expression(tokenizer)
-        _assert_tkn_val(tokenizer.next_token(), Keyword.THEN)
+        _assert_tkn_val(tokenizer.next(), Keyword.THEN)
         body_exp = self._parse_expression(tokenizer)
-        next_token = tokenizer.next_token()
+        next_token = tokenizer.next()
         if next_token == Keyword.ELSE:
             else_body_exp = self._parse_expression(tokenizer)
             return IfThenElseExpression(
@@ -366,20 +421,98 @@ class TigerParser(object):
         else:
             return IfThenExpression(cond_exp, body_exp)
 
+    def _parse_while_expression(
+        self, tokenizer: TigerTokenizer
+    ) -> WhileExpression:
+        """
+        whileExp → while exp do exp
+        """
+        _assert_tkn_val(tokenizer.next(), Keyword.WHILE)
+        cond_exp = self._parse_expression(tokenizer)
+        _assert_tkn_val(tokenizer.next(), Keyword.DO)
+        body_exp = self._parse_expression(tokenizer)
+        return WhileExpression(cond_exp, body_exp)
+
+    def _parse_for_expression(
+        self, tokenizer: TigerTokenizer
+    ) -> ForExpression:
+        """
+        forExp → for id := exp to exp do exp
+        """
+        _assert_tkn_val(tokenizer.next(), Keyword.FOR)
+        id_token = tokenizer.next()
+        _assert_identifier(id_token)
+        _assert_tkn_val(tokenizer.next(), Keyword.ASSIGMENT)
+        lower_bound = self._parse_expression(tokenizer)
+        _assert_tkn_val(tokenizer.next(), Keyword.TO)
+        upper_bound = self._parse_expression(tokenizer)
+        _assert_tkn_val(tokenizer.next(), Keyword.DO)
+        body = self._parse_expression(tokenizer)
+        return ForExpression(
+            IdentifierNode(id_token.value),
+            lower_bound,
+            upper_bound,
+            body,
+        )
+
+    def _parse_break_expression(
+        self, tokenizer: TigerTokenizer
+    ) -> BreakExpression:
+        """
+        break
+        """
+        _assert_tkn_val(tokenizer.next(), Keyword.BREAK)
+        return BreakExpression()
+
+    def _parse_nil_expression(
+        self, tokenizer: TigerTokenizer
+    ) -> NilExpression:
+        """
+        nil
+        """
+        _assert_tkn_val(tokenizer.next(), Keyword.NIL)
+        return NilExpression()
+
+    def _parse_negation_expression(
+        self, tokenizer: TigerTokenizer
+    ) -> NegationExpression:
+        """
+        negation → - exp
+        """
+        _assert_tkn_val(tokenizer.next(), Operator.SUB)
+        exp = self._parse_expression(tokenizer)
+        return NegationExpression(exp)
+
+    def _parse_seq_expression(
+        self, tokenizer: TigerTokenizer
+    ) -> SeqExpression:
+        """
+        seqExp → ( exp∗; )
+        """
+        _assert_tkn_val(tokenizer.next(), Punctuation.PAREN_OPEN)
+        exps = []
+        next_token = tokenizer.next()
+        while next_token != Punctuation.PAREN_CLOSE:
+            if exps:
+                _assert_tkn_val(tokenizer.next(), Punctuation.SEMI_COLON)
+            exps.append(self._parse_expression(tokenizer))
+            next_token = tokenizer.next()
+        return SeqExpression(exps)
+
     def _parse_type_declaration(
         self, tokenizer: TigerTokenizer
     ) -> TypeDecNode:
         """
         tyDec → type tyId = ty
         """
-        _assert_tkn_val(tokenizer.next_token(), Keyword.TYPE)
+        _assert_tkn_val(tokenizer.next(), Keyword.TYPE)
 
-        id_token = tokenizer.next_token()
+        id_token = tokenizer.next()
         _assert_identifier(id_token)
 
-        _assert_tkn_val(tokenizer.next_token(), Operator.EQ)
+        _assert_tkn_val(tokenizer.next(), Operator.EQ)
 
-        next_token = tokenizer.next_token()
+        next_token = tokenizer.next()
         tokenizer.rewind()
         if next_token.is_identifier:
             type_node = TypeIdentifierNode(next_token.value)
@@ -413,21 +546,21 @@ class TigerParser(object):
         funDec → function id ( fieldDec∗, ) = exp
                 | function id ( fieldDec∗, ) : tyId = exp
         """
-        _assert_tkn_val(tokenizer.next_token(), Keyword.FUNCTION)
+        _assert_tkn_val(tokenizer.next(), Keyword.FUNCTION)
 
-        id_token = tokenizer.next_token()
+        id_token = tokenizer.next()
         _assert_identifier(id_token)
 
-        _assert_tkn_val(tokenizer.next_token(), Punctuation.PAREN_OPEN)
-        next_token = tokenizer.next_token()
+        _assert_tkn_val(tokenizer.next(), Punctuation.PAREN_OPEN)
+        next_token = tokenizer.next()
         field_decs = []
         while next_token != Punctuation.PAREN_CLOSE:
             field_decs.append(self._parse_field_declaration(tokenizer))
-            next_token = tokenizer.next_token()  # either comma or close paren
+            next_token = tokenizer.next()  # either comma or close paren
 
         type_id_node = self._get_type_annotation(tokenizer)
 
-        _assert_tkn_val(tokenizer.next_token(), Operator.EQ)
+        _assert_tkn_val(tokenizer.next(), Operator.EQ)
         exp_node = self._parse_expression(tokenizer)
         return FuncDecNode(
             IdentifierNode(id_token.value),
@@ -441,14 +574,14 @@ class TigerParser(object):
         varDec → var id := exn
                 | var id : tyId := exp
         """
-        _assert_tkn_val(tokenizer.next_token(), Keyword.VAR)
+        _assert_tkn_val(tokenizer.next(), Keyword.VAR)
 
-        id_token = tokenizer.next_token()
+        id_token = tokenizer.next()
         _assert_identifier(id_token)
 
         type_id = self._get_type_annotation(tokenizer)
 
-        _assert_tkn_val(tokenizer.next_token(), Punctuation.ASSIGNMENT)
+        _assert_tkn_val(tokenizer.next(), Punctuation.ASSIGNMENT)
         exp_node = self._parse_expression(tokenizer)
 
         return VarDecNode(
@@ -463,7 +596,7 @@ class TigerParser(object):
         """
         fieldDec → id : tyId
         """
-        id_token = tokenizer.next_token()
+        id_token = tokenizer.next()
         _assert_identifier(id_token)
 
         type_id = self._get_type_annotation(tokenizer)

@@ -60,7 +60,7 @@ class TestTokenizer(object):
         tokenizer = TigerTokenizer(hello_world)
         tokens = []
         while True:
-            tkn = tokenizer.next_token()
+            tkn = tokenizer.next()
             if tkn is None:
                 break
             else:
@@ -75,10 +75,10 @@ class TestTokenizer(object):
 
     def test_rewind(self):
         tokenizer = TigerTokenizer(hello_world)
-        tokens = [tokenizer.next_token(), tokenizer.next_token()]
+        tokens = [tokenizer.next(), tokenizer.next()]
         tokenizer.rewind()
         while True:
-            tkn = tokenizer.next_token()
+            tkn = tokenizer.next()
             if tkn is None:
                 break
             else:

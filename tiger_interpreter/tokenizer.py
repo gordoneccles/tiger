@@ -150,7 +150,11 @@ class TigerTokenizer(object):
     def _program_without_comments(self) -> str:
         return re.sub(r'/\*.*\*/', '', self._program).strip()
 
-    def next_token(self) -> Optional[Token]:
+    def next(self) -> Optional[Token]:
+        """
+        Get next token and advance in token stream.
+        If end of stream has been reached, return None.
+        """
         if self._tokens is None:
             self._tokens = list(self._yield_tokens())
             self._next_token_idx = 0
@@ -161,6 +165,19 @@ class TigerTokenizer(object):
         tkn = self._tokens[self._next_token_idx]
         self._next_token_idx += 1
         return tkn
+
+    def peek(self, n: int) -> Optional[Token]:
+        """
+        Peek n tokens ahead without advancing stream.
+        """
+        if self._tokens is None:
+            self._tokens = list(self._yield_tokens())
+            self._next_token_idx = 0
+
+        if self._next_token_idx >= len(self._tokens):
+            return None
+
+        return self._tokens[self._next_token_idx]
 
     def rewind(self, n: int = 1):
         if self._next_token_idx - n <= 0:
