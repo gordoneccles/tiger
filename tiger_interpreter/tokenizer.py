@@ -166,7 +166,7 @@ class TigerTokenizer(object):
         self._next_token_idx += 1
         return tkn
 
-    def peek(self, n: int) -> Optional[Token]:
+    def peek(self, n: int = 0) -> Optional[Token]:
         """
         Peek n tokens ahead without advancing stream.
         """
@@ -174,19 +174,11 @@ class TigerTokenizer(object):
             self._tokens = list(self._yield_tokens())
             self._next_token_idx = 0
 
-        if self._next_token_idx >= len(self._tokens):
+        peek_idx = self._next_token_idx + n
+        if peek_idx >= len(self._tokens):
             return None
 
-        return self._tokens[self._next_token_idx]
-
-    def rewind(self, n: int = 1):
-        if self._next_token_idx - n <= 0:
-            raise TokenizerException(
-                'Cannot rewind {} tokens, have only read {}'.format(
-                    n, self._next_token_idx
-                )
-            )
-        self._next_token_idx -= n
+        return self._tokens[peek_idx]
 
     def _yield_tokens(self) -> Iterator[Token]:
         reader = StringIO(self._program_without_comments)

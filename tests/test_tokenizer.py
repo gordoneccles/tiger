@@ -73,10 +73,13 @@ class TestTokenizer(object):
             Punctuation(')'),
         ]
 
-    def test_rewind(self):
+    def test_pee(self):
         tokenizer = TigerTokenizer(hello_world)
-        tokens = [tokenizer.next(), tokenizer.next()]
-        tokenizer.rewind()
+        assert tokenizer.peek() == Identifier('print')
+        assert tokenizer.peek(1) == Punctuation('(')
+        assert tokenizer.peek(n=3) == Punctuation(')')
+        assert tokenizer.peek(n=4) is None
+        tokens = []
         while True:
             tkn = tokenizer.next()
             if tkn is None:
@@ -87,13 +90,10 @@ class TestTokenizer(object):
         assert tokens == [
             Identifier('print'),
             Punctuation('('),
-            Punctuation('('),
             StringLiteral('Hello, World!\n'),
             Punctuation(')'),
         ]
-
-        with pytest.raises(TokenizerException):
-            tokenizer.rewind(10)
+        assert tokenizer.peek() is None
 
     def test_comment_stripping(self):
         tokenizer = TigerTokenizer(hello_world)

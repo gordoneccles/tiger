@@ -312,17 +312,16 @@ class TigerParser(object):
         """
         Matches the common, optional type annotation pattern => ': tyId'
         """
-        if tokenizer.next() == Punctuation.COLON:
+        if tokenizer.peek() == Punctuation.COLON:
+            tokenizer.next()
             type_id_token = tokenizer.next()
             _assert_identifier(type_id_token)
             return TypeIdentifierNode(type_id_token)
         else:
-            tokenizer.rewind()
             return None
 
     def parse(self, tokenizer: TigerTokenizer) -> Program:
-        next_token = tokenizer.next()
-        tokenizer.rewind()
+        next_token = tokenizer.peek()
         if next_token == Keyword.LET:
             return Program(self._parse_let_expression(tokenizer))
         else:
@@ -376,8 +375,7 @@ class TigerParser(object):
         letExp → let dec+ in exp∗; end
         """
         _assert_tkn_val(tokenizer.next(), Keyword.LET)
-        next_token = tokenizer.next()
-        tokenizer.rewind()
+        next_token = tokenizer.peek()
         decs = []
         while next_token in [Keyword.TYPE, Keyword.FUNCTION, Keyword.VAR]:
             if next_token == Keyword.TYPE:
@@ -512,8 +510,7 @@ class TigerParser(object):
 
         _assert_tkn_val(tokenizer.next(), Operator.EQ)
 
-        next_token = tokenizer.next()
-        tokenizer.rewind()
+        next_token = tokenizer.peek()
         if next_token.is_identifier:
             type_node = TypeIdentifierNode(next_token.value)
         elif next_token == Keyword.ARRAY:
