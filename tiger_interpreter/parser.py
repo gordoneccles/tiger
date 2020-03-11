@@ -445,14 +445,14 @@ class TigerParser(object):
 
     @staticmethod
     def _get_type_annotation(
-        tokenizer: TigerLexer
+        lexer: TigerLexer
     ) -> Optional[TypeIdentifier]:
         """
         Matches the common, optional type annotation pattern => ': tyId'
         """
-        if tokenizer.peek() == Punctuation.COLON:
-            tokenizer.next()
-            type_id_token = tokenizer.next()
+        if lexer.peek() == Punctuation.COLON:
+            lexer.next()
+            type_id_token = lexer.next()
             _assert_identifier(type_id_token)
             return TypeIdentifier(type_id_token.value)
         else:
@@ -460,7 +460,7 @@ class TigerParser(object):
 
     @staticmethod
     def _collect_list(
-        tokenizer: TigerLexer,
+        lexer: TigerLexer,
         list_item_parser: Callable[[TigerLexer], AbstractSyntaxTreeNode],
         termination: Token,
         separator: Optional[Token] = None,
@@ -473,23 +473,23 @@ class TigerParser(object):
         """
         items = []
         while True:
-            if tokenizer.peek() == termination:
-                tokenizer.next()
+            if lexer.peek() == termination:
+                lexer.next()
                 break
-            items.append(list_item_parser(tokenizer))
-            if separator and tokenizer.peek() == separator:
-                tokenizer.next()
+            items.append(list_item_parser(lexer))
+            if separator and lexer.peek() == separator:
+                lexer.next()
         return items
 
-    def parse(self, tokenizer: TigerLexer) -> Program:
-        next_token = tokenizer.peek()
+    def parse(self, lexer: TigerLexer) -> Program:
+        next_token = lexer.peek()
         if next_token == Keyword.LET:
-            return Program(self._parse_let_expression(tokenizer))
+            return Program(self._parse_let_expression(lexer))
         else:
             # TODO: support programs not wrapped in a let
             raise NotImplementedError()
 
-    def _parse_expression(self, tokenizer: TigerLexer) -> Expression:
+    def _parse_expression(self, lexer: TigerLexer) -> Expression:
         """
         exp → lValue | nil | intLit | stringLit
             | seqExp | negation | callExp | infixExp
@@ -500,39 +500,39 @@ class TigerParser(object):
         TODO:
             infixExp → exp infixOp exp
         """
-        next_token = tokenizer.peek()
+        next_token = lexer.peek()
         if next_token.is_integer_literal:
-            exp = IntegerLiteralExpression(tokenizer.next().value)
+            exp = IntegerLiteralExpression(lexer.next().value)
         elif next_token.is_string_literal:
-            exp = StringLiteralExpression(tokenizer.next().value)
+            exp = StringLiteralExpression(lexer.next().value)
         elif next_token == Keyword.NIL:
-            exp = self._parse_nil_expression(tokenizer)
+            exp = self._parse_nil_expression(lexer)
         elif next_token == Keyword.BREAK:
-            exp = self._parse_break_expression(tokenizer)
+            exp = self._parse_break_expression(lexer)
         elif next_token == Keyword.IF:
-            exp = self._parse_if_expression(tokenizer)
+            exp = self._parse_if_expression(lexer)
         elif next_token == Keyword.WHILE:
-            exp = self._parse_while_expression(tokenizer)
+            exp = self._parse_while_expression(lexer)
         elif next_token == Keyword.FOR:
-            exp = self._parse_for_expression(tokenizer)
+            exp = self._parse_for_expression(lexer)
         elif next_token == Keyword.LET:
-            exp = self._parse_let_expression(tokenizer)
+            exp = self._parse_let_expression(lexer)
         elif next_token == OpToken.SUB:
-            exp = self._parse_negation_expression(tokenizer)
+            exp = self._parse_negation_expression(lexer)
         elif next_token == Punctuation.PAREN_OPEN:
-            exp = self._parse_seq_expression(tokenizer)
+            exp = self._parse_seq_expression(lexer)
         elif next_token.is_identifier:
-            next_next = tokenizer.peek(1)
+            next_next = lexer.peek(1)
             if next_next == Punctuation.DOT:
-                exp = self._parse_new_field_expression(tokenizer)
+                exp = self._parse_new_field_expression(lexer)
             elif next_next == Punctuation.BRACKET_OPEN:
                 exp = self._parse_arr_create_or_subscript_expression(
-                    tokenizer
+                    lexer
                 )
             elif next_next == Punctuation.PAREN_OPEN:
-                exp = self._parse_call_expression(tokenizer)
+                exp = self._parse_call_expression(lexer)
             elif next_next == Punctuation.CURLY_OPEN:
-                exp = self._parse_rec_create_expression(tokenizer)
+                exp = self._parse_rec_create_expression(lexer)
             else:
                 raise ParserException(
                     'Unexpected token {}'.format(next_token.value)
@@ -542,9 +542,9 @@ class TigerParser(object):
                 'Unexpected token {}'.format(next_token.value)
             )
         
-        if tokenizer.peek() in OpToken.values():
-            op_token = tokenizer.next()
-            right_exp = self._parse_expression(tokenizer)
+        if lexer.peek() in OpToken.values():
+            op_token = lexer.next()
+            right_exp = self._parse_expression(lexer)
             return InfixExpression(
                 exp,
                 Operator(op_token),
@@ -555,28 +555,28 @@ class TigerParser(object):
 
     def _parse_let_expression(
         self,
-        tokenizer: TigerLexer,
+        lexer: TigerLexer,
     ) -> LetExpression:
         """
         letExp → let dec+ in exp∗; end
         """
-        _assert_tkn_val(tokenizer.next(), Keyword.LET)
-        next_token = tokenizer.peek()
+        _assert_tkn_val(lexer.next(), Keyword.LET)
+        next_token = lexer.peek()
         decs = []
         while next_token in [Keyword.TYPE, Keyword.FUNCTION, Keyword.VAR]:
             if next_token == Keyword.TYPE:
-                dec_node = self._parse_type_declaration(tokenizer)
+                dec_node = self._parse_type_declaration(lexer)
             elif next_token == Keyword.FUNCTION:
-                dec_node = self._parse_func_declaration(tokenizer)
+                dec_node = self._parse_func_declaration(lexer)
             else:
-                dec_node = self._parse_var_declaration(tokenizer)
+                dec_node = self._parse_var_declaration(lexer)
             decs.append(dec_node)
-            next_token = tokenizer.next()
+            next_token = lexer.next()
 
         _assert_tkn_val(next_token, Keyword.IN)
 
         exps = self._collect_list(
-            tokenizer,
+            lexer,
             self._parse_expression,
             Keyword.END,
         )
@@ -584,50 +584,50 @@ class TigerParser(object):
         return LetExpression(decs, exps)
 
     def _parse_if_expression(
-        self, tokenizer: TigerLexer
+        self, lexer: TigerLexer
     ) -> Union[IfThenExpression, IfThenElseExpression]:
         """
         ifthenelse → if exp then exp else exp
         ifthen → if exp then exp
         """
-        _assert_tkn_val(tokenizer.next(), Keyword.IF)
-        cond_exp = self._parse_expression(tokenizer)
-        _assert_tkn_val(tokenizer.next(), Keyword.THEN)
-        body_exp = self._parse_expression(tokenizer)
-        next_token = tokenizer.next()
+        _assert_tkn_val(lexer.next(), Keyword.IF)
+        cond_exp = self._parse_expression(lexer)
+        _assert_tkn_val(lexer.next(), Keyword.THEN)
+        body_exp = self._parse_expression(lexer)
+        next_token = lexer.next()
         if next_token == Keyword.ELSE:
-            else_body_exp = self._parse_expression(tokenizer)
+            else_body_exp = self._parse_expression(lexer)
             return IfThenElseExpression(cond_exp, body_exp, else_body_exp)
         else:
             return IfThenExpression(cond_exp, body_exp)
 
     def _parse_while_expression(
-        self, tokenizer: TigerLexer
+        self, lexer: TigerLexer
     ) -> WhileExpression:
         """
         whileExp → while exp do exp
         """
-        _assert_tkn_val(tokenizer.next(), Keyword.WHILE)
-        cond_exp = self._parse_expression(tokenizer)
-        _assert_tkn_val(tokenizer.next(), Keyword.DO)
-        body_exp = self._parse_expression(tokenizer)
+        _assert_tkn_val(lexer.next(), Keyword.WHILE)
+        cond_exp = self._parse_expression(lexer)
+        _assert_tkn_val(lexer.next(), Keyword.DO)
+        body_exp = self._parse_expression(lexer)
         return WhileExpression(cond_exp, body_exp)
 
     def _parse_for_expression(
-        self, tokenizer: TigerLexer
+        self, lexer: TigerLexer
     ) -> ForExpression:
         """
         forExp → for id := exp to exp do exp
         """
-        _assert_tkn_val(tokenizer.next(), Keyword.FOR)
-        id_token = tokenizer.next()
+        _assert_tkn_val(lexer.next(), Keyword.FOR)
+        id_token = lexer.next()
         _assert_identifier(id_token)
-        _assert_tkn_val(tokenizer.next(), Keyword.ASSIGMENT)
-        lower_bound = self._parse_expression(tokenizer)
-        _assert_tkn_val(tokenizer.next(), Keyword.TO)
-        upper_bound = self._parse_expression(tokenizer)
-        _assert_tkn_val(tokenizer.next(), Keyword.DO)
-        body = self._parse_expression(tokenizer)
+        _assert_tkn_val(lexer.next(), Keyword.ASSIGMENT)
+        lower_bound = self._parse_expression(lexer)
+        _assert_tkn_val(lexer.next(), Keyword.TO)
+        upper_bound = self._parse_expression(lexer)
+        _assert_tkn_val(lexer.next(), Keyword.DO)
+        body = self._parse_expression(lexer)
         return ForExpression(
             Identifier(id_token.value),
             lower_bound,
@@ -636,66 +636,66 @@ class TigerParser(object):
         )
 
     def _parse_break_expression(
-        self, tokenizer: TigerLexer
+        self, lexer: TigerLexer
     ) -> BreakExpression:
         """
         break
         """
-        _assert_tkn_val(tokenizer.next(), Keyword.BREAK)
+        _assert_tkn_val(lexer.next(), Keyword.BREAK)
         return BreakExpression()
 
     def _parse_nil_expression(
-        self, tokenizer: TigerLexer
+        self, lexer: TigerLexer
     ) -> NilExpression:
         """
         nil
         """
-        _assert_tkn_val(tokenizer.next(), Keyword.NIL)
+        _assert_tkn_val(lexer.next(), Keyword.NIL)
         return NilExpression()
 
     def _parse_negation_expression(
-        self, tokenizer: TigerLexer
+        self, lexer: TigerLexer
     ) -> NegationExpression:
         """
         negation → - exp
         """
-        _assert_tkn_val(tokenizer.next(), OpToken.SUB)
-        exp = self._parse_expression(tokenizer)
+        _assert_tkn_val(lexer.next(), OpToken.SUB)
+        exp = self._parse_expression(lexer)
         return NegationExpression(exp)
 
     def _parse_seq_expression(
-        self, tokenizer: TigerLexer
+        self, lexer: TigerLexer
     ) -> SeqExpression:
         """
         seqExp → ( exp∗; )
         """
-        _assert_tkn_val(tokenizer.next(), Punctuation.PAREN_OPEN)
+        _assert_tkn_val(lexer.next(), Punctuation.PAREN_OPEN)
         exps = []
-        next_token = tokenizer.next()
+        next_token = lexer.next()
         while next_token != Punctuation.PAREN_CLOSE:
             if exps:
-                _assert_tkn_val(tokenizer.next(), Punctuation.SEMI_COLON)
-            exps.append(self._parse_expression(tokenizer))
-            next_token = tokenizer.next()
+                _assert_tkn_val(lexer.next(), Punctuation.SEMI_COLON)
+            exps.append(self._parse_expression(lexer))
+            next_token = lexer.next()
         return SeqExpression(exps)
 
     def _parse_arr_create_or_subscript_expression(
-        self, tokenizer: TigerLexer
+        self, lexer: TigerLexer
     ) -> Union[LValueExpression, ArrCreateExpression, AssignmentExpression]:
         """
         arrCreate → tyId [ exp ] of exp
         subscript → lValue [ exp ]
         """
-        id_token = tokenizer.next()
+        id_token = lexer.next()
         _assert_identifier(id_token)
 
-        _assert_tkn_val(tokenizer.next(), Punctuation.BRACKET_OPEN)
-        exp = self._parse_expression(tokenizer)
-        _assert_tkn_val(tokenizer.next(), Punctuation.BRACKET_CLOSE)
+        _assert_tkn_val(lexer.next(), Punctuation.BRACKET_OPEN)
+        exp = self._parse_expression(lexer)
+        _assert_tkn_val(lexer.next(), Punctuation.BRACKET_CLOSE)
         
-        if tokenizer.peek() == Keyword.OF:
-            tokenizer.next()
-            of_exp = self._parse_expression(tokenizer)
+        if lexer.peek() == Keyword.OF:
+            lexer.next()
+            of_exp = self._parse_expression(lexer)
             return ArrCreateExpression(
                 Identifier(id_token.value),
                 exp,
@@ -708,18 +708,18 @@ class TigerParser(object):
                 exp,
             )
         )
-        return self._parse_rest_of_l_value_expression(subscript_exp, tokenizer)
+        return self._parse_rest_of_l_value_expression(subscript_exp, lexer)
 
     def _parse_new_field_expression(
-        self, tokenizer: TigerLexer
+        self, lexer: TigerLexer
     ) -> Union[LValueExpression, AssignmentExpression]:
         """
         fieldExp → lValue . id
         """
-        left_id_token = tokenizer.next()
+        left_id_token = lexer.next()
         _assert_identifier(left_id_token)
-        _assert_tkn_val(tokenizer.next(), Punctuation.DOT)
-        right_id_token = tokenizer.next()
+        _assert_tkn_val(lexer.next(), Punctuation.DOT)
+        right_id_token = lexer.next()
         _assert_identifier(right_id_token)
         field_exp = LValueExpression(
             FieldExpression(
@@ -727,10 +727,10 @@ class TigerParser(object):
                 Identifier(right_id_token.value),
             )
         )
-        return self._parse_rest_of_l_value_expression(field_exp, tokenizer)
+        return self._parse_rest_of_l_value_expression(field_exp, lexer)
 
     def _parse_rest_of_l_value_expression(
-        self, l_value: LValueExpression, tokenizer: TigerLexer
+        self, l_value: LValueExpression, lexer: TigerLexer
     ) -> Union[LValueExpression, AssignmentExpression]:
         """
         lValue → id | subscript | fieldExp
@@ -745,47 +745,47 @@ class TigerParser(object):
         The calling method is responsible for the left-most l-value. This
         method is for finishing it off.
         """
-        while tokenizer.peek() in [Punctuation.BRACKET_OPEN, Punctuation.DOT]:
-            next_token = tokenizer.next()
+        while lexer.peek() in [Punctuation.BRACKET_OPEN, Punctuation.DOT]:
+            next_token = lexer.next()
             if next_token == Punctuation.BRACKET_OPEN:
-                exp = self._parse_expression(tokenizer)
+                exp = self._parse_expression(lexer)
                 l_value = LValueExpression(SubscriptExpression(l_value, exp))
-                _assert_tkn_val(tokenizer.next(), Punctuation.BRACKET_CLOSE)
+                _assert_tkn_val(lexer.next(), Punctuation.BRACKET_CLOSE)
             elif next_token == Punctuation.DOT:
-                id_token = tokenizer.next()
+                id_token = lexer.next()
                 l_value = LValueExpression(
                     FieldExpression(l_value, Identifier(id_token.value))
                 )
 
-        if tokenizer.peek() == Punctuation.ASSIGNMENT:
-            return self._parse_assignment_expression(l_value, tokenizer)
+        if lexer.peek() == Punctuation.ASSIGNMENT:
+            return self._parse_assignment_expression(l_value, lexer)
         else:
             return l_value
 
     def _parse_assignment_expression(
         self,
         l_value: LValueExpression,
-        tokenizer: TigerLexer,
+        lexer: TigerLexer,
     ) -> AssignmentExpression:
         """
         assignment → lValue := exp
         """
-        _assert_tkn_val(tokenizer.next(), Punctuation.ASSIGNMENT)
-        exp = self._parse_expression(tokenizer)
+        _assert_tkn_val(lexer.next(), Punctuation.ASSIGNMENT)
+        exp = self._parse_expression(lexer)
         return AssignmentExpression(l_value, exp)
 
     def _parse_call_expression(
         self,
-        tokenizer: TigerLexer,
+        lexer: TigerLexer,
     ) -> CallExpression:
         """
         callExp → id ( exp∗, )
         """
-        id_token = tokenizer.next()
+        id_token = lexer.next()
         _assert_identifier(id_token)
-        _assert_tkn_val(tokenizer.next(), Punctuation.PAREN_OPEN)
+        _assert_tkn_val(lexer.next(), Punctuation.PAREN_OPEN)
         exps = self._collect_list(
-            tokenizer,
+            lexer,
             self._parse_expression,
             Punctuation.PAREN_CLOSE,
             separator=Punctuation.COMMA,
@@ -795,16 +795,16 @@ class TigerParser(object):
 
     def _parse_rec_create_expression(
         self,
-        tokenizer: TigerLexer,
+        lexer: TigerLexer,
     ) -> RecCreateExpression:
         """
         recCreate → tyId { fieldCreate∗, }
         """
-        id_token = tokenizer.next()
+        id_token = lexer.next()
         _assert_identifier(id_token)
-        _assert_tkn_val(tokenizer.next(), Punctuation.CURLY_OPEN)
+        _assert_tkn_val(lexer.next(), Punctuation.CURLY_OPEN)
         field_creates = self._collect_list(
-            tokenizer,
+            lexer,
             self._parse_field_create,
             Punctuation.CURLY_CLOSE,
             separator=Punctuation.COMMA,
@@ -816,33 +816,33 @@ class TigerParser(object):
 
     def _parse_field_create(
         self,
-        tokenizer: TigerLexer
+        lexer: TigerLexer
     ) -> FieldCreate:
-        id_token = tokenizer.next()
-        _assert_tkn_val(tokenizer.next(), OpToken.EQ)
-        exp = self._parse_expression(tokenizer)
+        id_token = lexer.next()
+        _assert_tkn_val(lexer.next(), OpToken.EQ)
+        exp = self._parse_expression(lexer)
         return FieldCreate(Identifier(id_token.value), exp)
 
     def _parse_type_declaration(
-        self, tokenizer: TigerLexer
+        self, lexer: TigerLexer
     ) -> TypeDeclaration:
         """
         tyDec → type tyId = ty
         """
-        _assert_tkn_val(tokenizer.next(), Keyword.TYPE)
+        _assert_tkn_val(lexer.next(), Keyword.TYPE)
 
-        id_token = tokenizer.next()
+        id_token = lexer.next()
         _assert_identifier(id_token)
 
-        _assert_tkn_val(tokenizer.next(), OpToken.EQ)
+        _assert_tkn_val(lexer.next(), OpToken.EQ)
 
-        next_token = tokenizer.peek()
+        next_token = lexer.peek()
         if next_token.is_identifier:
             type_node = TypeIdentifier(next_token.value)
         elif next_token == Keyword.ARRAY:
-            type_node = self._parse_array_type(tokenizer)
+            type_node = self._parse_array_type(lexer)
         elif next_token == Punctuation.CURLY_OPEN:
-            type_node = self._parse_record_type(tokenizer)
+            type_node = self._parse_record_type(lexer)
         else:
             raise ParserException(
                 'Expected type identifier, array type, or record type. '
@@ -850,22 +850,22 @@ class TigerParser(object):
             )
         return TypeDeclaration(TypeIdentifier(id_token.value), type_node)
 
-    def _parse_array_type(self, tokenizer: TigerLexer) -> ArrayType:
+    def _parse_array_type(self, lexer: TigerLexer) -> ArrayType:
         """
         arrTy → array of tyId
         """
-        _assert_tkn_val(tokenizer.next(), Keyword.ARRAY)
-        _assert_tkn_val(tokenizer.next(), Keyword.OF)
-        type_id_token = tokenizer.next()
+        _assert_tkn_val(lexer.next(), Keyword.ARRAY)
+        _assert_tkn_val(lexer.next(), Keyword.OF)
+        type_id_token = lexer.next()
         return ArrayType(TypeIdentifier(type_id_token.value))
 
-    def _parse_record_type(self, tokenizer: TigerLexer) -> RecType:
+    def _parse_record_type(self, lexer: TigerLexer) -> RecType:
         """
         recTy → { fieldDec∗, }
         """
-        _assert_tkn_val(tokenizer.next(), Punctuation.CURLY_OPEN)
+        _assert_tkn_val(lexer.next(), Punctuation.CURLY_OPEN)
         field_decs = self._collect_list(
-            tokenizer,
+            lexer,
             self._parse_field_declaration,
             Punctuation.CURLY_CLOSE,
             separator=Punctuation.COMMA,
@@ -873,28 +873,28 @@ class TigerParser(object):
         return RecType(field_decs)
 
     def _parse_func_declaration(
-        self, tokenizer: TigerLexer
+        self, lexer: TigerLexer
     ) -> FunDeclaration:
         """
         funDec → function id ( fieldDec∗, ) = exp
                 | function id ( fieldDec∗, ) : tyId = exp
         """
-        _assert_tkn_val(tokenizer.next(), Keyword.FUNCTION)
+        _assert_tkn_val(lexer.next(), Keyword.FUNCTION)
 
-        id_token = tokenizer.next()
+        id_token = lexer.next()
         _assert_identifier(id_token)
 
-        _assert_tkn_val(tokenizer.next(), Punctuation.PAREN_OPEN)
-        next_token = tokenizer.next()
+        _assert_tkn_val(lexer.next(), Punctuation.PAREN_OPEN)
+        next_token = lexer.next()
         field_decs = []
         while next_token != Punctuation.PAREN_CLOSE:
-            field_decs.append(self._parse_field_declaration(tokenizer))
-            next_token = tokenizer.next()  # either comma or close paren
+            field_decs.append(self._parse_field_declaration(lexer))
+            next_token = lexer.next()  # either comma or close paren
 
-        type_id_node = self._get_type_annotation(tokenizer)
+        type_id_node = self._get_type_annotation(lexer)
 
-        _assert_tkn_val(tokenizer.next(), OpToken.EQ)
-        exp_node = self._parse_expression(tokenizer)
+        _assert_tkn_val(lexer.next(), OpToken.EQ)
+        exp_node = self._parse_expression(lexer)
         return FunDeclaration(
             Identifier(id_token.value),
             field_decs,
@@ -904,21 +904,21 @@ class TigerParser(object):
 
     def _parse_var_declaration(
         self,
-        tokenizer: TigerLexer,
+        lexer: TigerLexer,
     ) -> VarDeclaration:
         """
         varDec → var id := exn
                 | var id : tyId := exp
         """
-        _assert_tkn_val(tokenizer.next(), Keyword.VAR)
+        _assert_tkn_val(lexer.next(), Keyword.VAR)
 
-        id_token = tokenizer.next()
+        id_token = lexer.next()
         _assert_identifier(id_token)
 
-        type_id = self._get_type_annotation(tokenizer)
+        type_id = self._get_type_annotation(lexer)
 
-        _assert_tkn_val(tokenizer.next(), Punctuation.ASSIGNMENT)
-        exp_node = self._parse_expression(tokenizer)
+        _assert_tkn_val(lexer.next(), Punctuation.ASSIGNMENT)
+        exp_node = self._parse_expression(lexer)
 
         return VarDeclaration(
             Identifier(id_token.value),
@@ -927,15 +927,15 @@ class TigerParser(object):
         )
 
     def _parse_field_declaration(
-        self, tokenizer: TigerLexer
+        self, lexer: TigerLexer
     ) -> FieldDeclaration:
         """
         fieldDec → id : tyId
         """
-        id_token = tokenizer.next()
+        id_token = lexer.next()
         _assert_identifier(id_token)
 
-        type_id = self._get_type_annotation(tokenizer)
+        type_id = self._get_type_annotation(lexer)
         if type_id is None:
             raise ParserException(
                 'Field declarations require type annotation.'
