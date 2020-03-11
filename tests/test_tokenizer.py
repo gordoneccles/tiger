@@ -1,7 +1,7 @@
 import pytest
 
 from tiger_interpreter.tokenizer import (
-    TigerTokenizer, Identifier, Punctuation, StringLiteral, Keyword, Operator,
+    TigerLexer, Identifier, Punctuation, StringLiteral, Keyword, Operator,
     TokenizerException
 )
 
@@ -28,7 +28,7 @@ print("Hello, World!\n") /* **this/does/the/thing** */
 
 class TestTokenizer(object):
     def test_hello_world(self):
-        assert [t for t in TigerTokenizer(hello_world)._yield_tokens()] == [
+        assert [t for t in TigerLexer(hello_world)._yield_tokens()] == [
             Identifier('print'),
             Punctuation('('),
             StringLiteral('Hello, World!\n'),
@@ -37,7 +37,7 @@ class TestTokenizer(object):
 
     def test_let_hello_world(self):
         assert [
-           t for t in TigerTokenizer(let_hello_world)._yield_tokens()
+           t for t in TigerLexer(let_hello_world)._yield_tokens()
         ] == [
             Keyword('let'),
             Keyword('function'),
@@ -57,7 +57,7 @@ class TestTokenizer(object):
         ]
 
     def test_next_token(self):
-        tokenizer = TigerTokenizer(hello_world)
+        tokenizer = TigerLexer(hello_world)
         tokens = []
         while True:
             tkn = tokenizer.next()
@@ -74,7 +74,7 @@ class TestTokenizer(object):
         ]
 
     def test_pee(self):
-        tokenizer = TigerTokenizer(hello_world)
+        tokenizer = TigerLexer(hello_world)
         assert tokenizer.peek() == Identifier('print')
         assert tokenizer.peek(1) == Punctuation('(')
         assert tokenizer.peek(n=3) == Punctuation(')')
@@ -96,12 +96,12 @@ class TestTokenizer(object):
         assert tokenizer.peek() is None
 
     def test_comment_stripping(self):
-        tokenizer = TigerTokenizer(hello_world)
+        tokenizer = TigerLexer(hello_world)
         assert tokenizer._program_without_comments == (
             'print("Hello, World!\n")'
         )
 
-        tokenizer = TigerTokenizer(very_commented_hello_world)
+        tokenizer = TigerLexer(very_commented_hello_world)
         assert tokenizer._program_without_comments == (
             'print("Hello, World!\n")'
         )
