@@ -1,7 +1,7 @@
 from pytest import fixture
 
 from tiger_interpreter.parser import TigerParser
-from tiger_interpreter.tokenizer import TigerLexer
+from tiger_interpreter.lexer import TigerLexer
 
 
 @fixture

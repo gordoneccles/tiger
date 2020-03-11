@@ -1,4 +1,4 @@
-from tiger_interpreter.tokenizer import TigerLexer
+from tiger_interpreter.lexer import TigerLexer
 from tiger_interpreter.parser import TigerParser
 # form tiger_interpreter.interpreter import TigerInterpreter
 

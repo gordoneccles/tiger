@@ -1,6 +1,6 @@
 import pytest
 
-from tiger_interpreter.tokenizer import (
+from tiger_interpreter.lexer import (
     TigerLexer, Identifier, Punctuation, StringLiteral, Keyword, Operator,
     TokenizerException
 )
