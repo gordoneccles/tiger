@@ -1,8 +1,13 @@
 from pytest import fixture
 
 from tiger_pl.parser import (
-    TigerParser, Program, LetExpression, FunDeclaration, Identifier,
-    CallExpression, StringLiteralExpression
+    TigerParser,
+    Program,
+    LetExpression,
+    FunDeclaration,
+    Identifier,
+    CallExpression,
+    StringLiteralExpression,
 )
 from tiger_pl.lexer import TigerLexer
 
@@ -21,7 +26,6 @@ def hello_world_lexer():
 
 
 class TestParser(object):
-
     def test_hello_world(self, hello_world_lexer):
         parser = TigerParser()
         ast = parser.parse(hello_world_lexer)
@@ -29,16 +33,14 @@ class TestParser(object):
             LetExpression(
                 [
                     FunDeclaration(
-                        Identifier('hello'),
+                        Identifier("hello"),
                         [],
                         CallExpression(
-                            Identifier('print'),
-                            [StringLiteralExpression('Hello, World!\n')],
-                        )
+                            Identifier("print"),
+                            [StringLiteralExpression("Hello, World!\n")],
+                        ),
                     )
                 ],
-                [
-                    CallExpression(Identifier('hello'), [])
-                ]
+                [CallExpression(Identifier("hello"), [])],
             )
         )
