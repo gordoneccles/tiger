@@ -2,7 +2,7 @@ import inspect
 from abc import ABC
 from typing import List, Union, Optional, Callable
 
-from tiger_interpreter.lexer import (
+from tiger_pl.lexer import (
     Token, Keyword, TigerLexer, Punctuation, Operator as OpToken,
 )
 

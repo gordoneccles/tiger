@@ -1,7 +1,7 @@
 import re
 from abc import abstractmethod, ABC
 from io import StringIO
-from typing import Iterator, Tuple, Union, Optional
+from typing import Iterator, Union, Optional
 
 
 class _AbstractToken(ABC):

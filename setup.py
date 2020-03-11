@@ -4,7 +4,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="tiger-interpreter-gmeccles@gmail.com",
+    name="tiger-pl-gmeccles@gmail.com",
     version="0.0.1",
     author="Gordon Eccles",
     author_email="gmeccles@gmail.com",

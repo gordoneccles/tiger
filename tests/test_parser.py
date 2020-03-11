@@ -1,10 +1,10 @@
 from pytest import fixture
 
-from tiger_interpreter.parser import (
+from tiger_pl.parser import (
     TigerParser, Program, LetExpression, FunDeclaration, Identifier,
     CallExpression, StringLiteralExpression
 )
-from tiger_interpreter.lexer import TigerLexer
+from tiger_pl.lexer import TigerLexer
 
 
 @fixture
