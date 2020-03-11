@@ -32,6 +32,10 @@ class _AbstractEnumToken(metaclass=_EnumMeta):
     def matches(cls, tkn: str) -> bool:
         return tkn in cls._values
 
+    @property
+    def values(self):
+        return self._values
+
 
 class Token(object):
     def __getattr__(self, attr_name):

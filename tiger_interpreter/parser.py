@@ -3,7 +3,7 @@ from abc import ABC
 from typing import List, Union, Optional
 
 from tiger_interpreter.tokenizer import (
-    Token, Keyword, TigerTokenizer, Punctuation, Operator,
+    Token, Keyword, TigerTokenizer, Punctuation, Operator as OpToken,
 )
 
 """
@@ -44,29 +44,48 @@ letExp → let dec+ in exp∗; end
 """
 
 
-class ParserException(Exception):
-    pass
-
-
 """
 # Class Heirarchy for AST Nodes
+- Every class (except for Python-abstract ones) references a single rule in
+  the grammar
+- The Python-abstract classes are just a way to organize related rules.
+  That is, they're an implementation decision but not required by the language.
+
 AbstractSyntaxTreeNode
-    IdentifierNode
-    TypeIdentifierNode
+    AbstractIdentifier
+        Identifier
+        TypeIdentifier
     Expression
-        LetExpNode
+        IntegerLiteralExpression
+        StringLiteralExpression
+        LetExpression
+        IfThenExpression
+        IfThenElseExpression
+        WhileExpression
+        ForExpression
+        BreakExpression
         NilExpNode
-        IntegerLiteralNode
-        StringLiteralNode
-        (...more to come)
+        NegationExpression
+        SeqExpression
+        AbstractLValueExpression
+            LValueExpression
+            SubscriptExpression
+            FieldExpression
+        AssignmentExpression
+        ArrCreateExpression
+        RecCreateExpression
+        CallExpression
+    FieldCreate
     Declaration
-        TypeDecNode
-        VarDecNode
-        FieldDecNode
-        FuncDecNode
+        TypeDeclaration
+        VarDeclaration
+        FieldDeclaration
+        FunDeclaration
     TigerType
+    AbstractTigerType
         ArrayType
-        RecordType
+        RecType
+    Operator
 """
 
 
@@ -119,16 +138,8 @@ class AbstractSyntaxTreeNode(ABC):
             setattr(self, param.name, kwarg)
 
 
-class IdentifierNode(AbstractSyntaxTreeNode):
-
-    def __init__(self, value: str):
-        super().__init__(value)
-
-
-class TypeIdentifierNode(AbstractSyntaxTreeNode):
-
-    def __init__(self, value: str):
-        super().__init__(value)
+class AbstractIdentifier(AbstractSyntaxTreeNode, ABC):
+    pass
 
 
 class Declaration(AbstractSyntaxTreeNode):
@@ -139,7 +150,103 @@ class Expression(AbstractSyntaxTreeNode):
     pass
 
 
-class LetExpNode(Expression):
+class Identifier(AbstractIdentifier):
+
+    def __init__(self, value: str):
+        super().__init__(value)
+
+
+class TypeIdentifier(AbstractIdentifier):
+
+    def __init__(self, value: str):
+        super().__init__(value)
+
+
+class VarDeclaration(Declaration):
+
+    def __init__(
+        self,
+        identifier: Identifier,
+        expression: Expression,
+        type_identifier: Optional[TypeIdentifier] = None,
+    ):
+        super().__init__(
+            identifier, expression, type_identifier=type_identifier
+        )
+
+
+class FieldDeclaration(Declaration):
+    def __init__(
+        self, identifier: Identifier, type_identifier: TypeIdentifier
+    ):
+        super().__init__(identifier, type_identifier)
+
+
+class FunDeclaration(Declaration):
+    def __init__(
+        self,
+        identifier: Identifier,
+        field_declarations: List[FieldDeclaration],
+        expression: Expression,
+        type_identifier: Optional[TypeIdentifier] = None,
+    ):
+        super().__init__(
+            identifier,
+            field_declarations,
+            expression,
+            type_identifier=type_identifier
+        )
+
+
+class AbstractTigerType(AbstractSyntaxTreeNode, ABC):
+    pass
+
+
+class ArrayType(AbstractTigerType):
+    def __init__(self, type_identifier: TypeIdentifier):
+        super().__init__(type_identifier)
+
+
+class RecType(AbstractTigerType):
+    def __init__(self, field_declarations: List[FieldDeclaration]):
+        super().__init__(field_declarations)
+
+
+class TigerType(AbstractSyntaxTreeNode):
+    def __init__(
+        self,
+        tiger_type: Union[TypeIdentifier, ArrayType, RecType]
+    ):
+        super().__init__(tiger_type)
+
+
+class TypeDeclaration(Declaration):
+    def __init__(
+        self,
+        type_identifier: TypeIdentifier,
+        tiger_type: TigerType,
+    ):
+        super().__init__(type_identifier, tiger_type)
+
+
+class Operator(AbstractSyntaxTreeNode):
+    def __init__(self, op: OpToken):
+        super().__init__(op)
+
+
+class IntegerLiteralExpression(Expression):
+
+    def __init__(self, value: int):
+        super().__init__(value)
+
+
+class StringLiteralExpression(Expression):
+
+    def __init__(self, value: str):
+        super().__init__(value)
+        
+
+class LetExpression(Expression):
 
     def __init__(
        self, declarations: List[Declaration], expressions: List[Expression]
@@ -178,7 +285,7 @@ class WhileExpression(Expression):
 class ForExpression(Expression):
     def __ini__(
         self,
-        identfier: IdentifierNode,
+        identfier: Identifier,
         lower_bound: Expression,
         upper_bound: Expression,
         body: Expression,
@@ -204,75 +311,106 @@ class SeqExpression(Expression):
         super().__init__(expressions)
 
 
-class IntegerLiteralExpNode(Expression):
-
-    def __init__(self, value: int):
-        super().__init__(value)
-
-
-class StringLiteralExpNode(Expression):
-
-    def __init__(self, value: str):
-        super().__init__(value)
-
-
-class TigerType(AbstractSyntaxTreeNode):
+class AbstractLValueExpression(Expression, ABC):
     pass
 
 
-class ArrayTypeNode(TigerType):
-    # TODO
-    pass
-
-
-class RecordTypeNode(TigerType):
-    # TODO
-    pass
-
-
-class TypeDecNode(Declaration):
+class LValueExpression(AbstractLValueExpression):
     def __init__(
         self,
-        type_identifier: TypeIdentifierNode,
-        tiger_type: TigerType,
+        l_value: Union[
+            Identifier, 'SubscriptExpression', 'FieldExpression'
+        ],
     ):
-        super().__init__(type_identifier, tiger_type)
+        super().__init__(l_value)
 
 
-class VarDecNode(Declaration):
-
+class SubscriptExpression(AbstractLValueExpression):
     def __init__(
         self,
-        identifier: IdentifierNode,
+        l_value: LValueExpression,
+        index_expression: Expression,
+    ):
+        super().__init__(l_value, index_expression)
+
+
+class FieldExpression(AbstractLValueExpression):
+    def __init__(
+        self,
+        l_value: LValueExpression,
+        identifer: Identifier,
+    ):
+        super().__init__(l_value, identifer)
+
+
+class AssignmentExpression(Expression):
+    def __init__(
+        self,
+        l_value: LValueExpression,
         expression: Expression,
-        type_identifier: Optional[TypeIdentifierNode] = None,
+    ):
+        super().__init__(l_value, expression)
+
+
+class ArrCreateExpression(Expression):
+    def __init__(
+        self,
+        type_identifier: Identifier,
+        size_expression: Expression,
+        initial_values_expression: Expression,
     ):
         super().__init__(
-            identifier, expression, type_identifier=type_identifier
+            type_identifier, size_expression, initial_values_expression
         )
 
 
-class FieldDecNode(Declaration):
-    def __init__(
-        self, identifier: IdentifierNode, type_identifier: TypeIdentifierNode
-    ):
-        super().__init__(identifier, type_identifier)
-
-
-class FuncDecNode(Declaration):
+class FieldCreate(AbstractSyntaxTreeNode):
     def __init__(
         self,
-        identifier: IdentifierNode,
-        field_declarations: List[FieldDecNode],
+        identifier: Identifier,
         expression: Expression,
-        type_identifier: Optional[TypeIdentifierNode] = None,
     ):
-        super().__init__(
-            identifier,
-            field_declarations,
-            expression,
-            type_identifier=type_identifier
-        )
+        super().__init__(identifier, expression)
+
+
+class RecCreateExpression(Expression):
+    def __init__(
+        self,
+        type_identifier: Identifier,
+        field_create_expressions: List[FieldCreate],
+    ):
+        super().__init__(type_identifier, field_create_expressions)
+
+
+class CallExpression(Expression):
+    def __init__(
+        self,
+        identifier: Identifier,
+        expressions: List[Expression],
+    ):
+        super().__init__(identifier, expressions)
+
+
+class InfixExpression(Expression):
+    def __init__(
+        self,
+        left_expression: Expression,
+        operator: Operator,
+        right_expression: Expression,
+    ):
+        super().__init__(left_expression, operator, right_expression)
+
+
+class Program(AbstractSyntaxTreeNode):
+    """
+    For use as the root node of the AST
+    """
+    def __init__(self, expression: Expression):
+        super().__init__(expression)
+
+
+class ParserException(Exception):
+    pass
 
 
 def _assert_tkn_val(token: Token, expect_val: Union[str, List[str]]):
@@ -295,20 +433,12 @@ def _assert_identifier(token: Token):
         raise ParserException('Expected identifier, found {}'.format(token))
 
 
-class Program(AbstractSyntaxTreeNode):
-    """
-    For use as the root node of the AST
-    """
-    def __init__(self, expression: Expression):
-        super().__init__(expression)
-
-
 class TigerParser(object):
 
     @staticmethod
     def _get_type_annotation(
         tokenizer: TigerTokenizer
-    ) -> Optional[TypeIdentifierNode]:
+    ) -> Optional[TypeIdentifier]:
         """
         Matches the common, optional type annotation pattern => ': tyId'
         """
@@ -316,7 +446,7 @@ class TigerParser(object):
             tokenizer.next()
             type_id_token = tokenizer.next()
             _assert_identifier(type_id_token)
-            return TypeIdentifierNode(type_id_token)
+            return TypeIdentifier(type_id_token)
         else:
             return None
 
@@ -338,39 +468,62 @@ class TigerParser(object):
 
         TODO:
             infixExp → exp infixOp exp
-            arrCreate → tyId [ exp ] of exp
-            recCreate → tyId { fieldCreate∗, }
-            callExp → id ( exp∗, )
-            assignment → lValue := exp
-            lValue → id | subscript | fieldExp
-                subscript → lValue [ exp ]
-                fieldExp → lValue . id
         """
         next_token = tokenizer.peek()
         if next_token.is_integer_literal:
-            return IntegerLiteralExpNode(tokenizer.next().value)
+            exp = IntegerLiteralExpression(tokenizer.next().value)
         elif next_token.is_string_literal:
-            return StringLiteralExpNode(tokenizer.next().value)
+            exp = StringLiteralExpression(tokenizer.next().value)
         elif next_token == Keyword.NIL:
-            return self._parse_nil_expression(tokenizer)
+            exp = self._parse_nil_expression(tokenizer)
         elif next_token == Keyword.BREAK:
-            return self._parse_break_expression(tokenizer)
+            exp = self._parse_break_expression(tokenizer)
         elif next_token == Keyword.IF:
-            return self._parse_if_expression(tokenizer)
+            exp = self._parse_if_expression(tokenizer)
         elif next_token == Keyword.WHILE:
-            return self._parse_while_expression(tokenizer)
+            exp = self._parse_while_expression(tokenizer)
         elif next_token == Keyword.FOR:
-            return self._parse_for_expression(tokenizer)
+            exp = self._parse_for_expression(tokenizer)
         elif next_token == Keyword.LET:
-            return self._parse_let_expression(tokenizer)
-        elif next_token == Operator.SUB:
-            return self._parse_negation_expression(tokenizer)
+            exp = self._parse_let_expression(tokenizer)
+        elif next_token == OpToken.SUB:
+            exp = self._parse_negation_expression(tokenizer)
         elif next_token == Punctuation.PAREN_OPEN:
-            return self._parse_seq_expression(tokenizer)
+            exp = self._parse_seq_expression(tokenizer)
+        elif next_token.is_identifier:
+            next_next = tokenizer.peek(1)
+            if next_next == Punctuation.DOT:
+                exp = self._parse_new_field_expression(tokenizer)
+            elif next_next == Punctuation.BRACKET_OPEN:
+                exp = self._parse_arr_create_or_subscript_expression(
+                    tokenizer
+                )
+            elif next_next == Punctuation.PAREN_OPEN:
+                exp = self._parse_call_expression(tokenizer)
+            elif next_next == Punctuation.CURLY_OPEN:
+                exp = self._parse_rec_create_expression(tokenizer)
+            else:
+                raise ParserException(
+                    'Unexpected token {}'.format(next_token.value)
+                )
         else:
-            raise NotImplementedError('TODO')
+            raise ParserException(
+                'Unexpected token {}'.format(next_token.value)
+            )
+        
+        if tokenizer.peek() in OpToken.values:
+            op_token = tokenizer.next()
+            right_exp = self._parse_expression(tokenizer)
+            return InfixExpression(
+                exp,
+                OpToken()
+            )
+            
 
-    def _parse_let_expression(self, tokenizer: TigerTokenizer) -> LetExpNode:
+    def _parse_let_expression(
+        self,
+        tokenizer: TigerTokenizer,
+    ) -> LetExpression:
         """
         letExp → let dec+ in exp∗; end
         """
@@ -397,7 +550,7 @@ class TigerParser(object):
             if next_token == Punctuation.SEMI_COLON:
                 next_token = tokenizer.next()
 
-        return LetExpNode(decs, exps)
+        return LetExpression(decs, exps)
 
     def _parse_if_expression(
         self, tokenizer: TigerTokenizer
@@ -413,9 +566,7 @@ class TigerParser(object):
         next_token = tokenizer.next()
         if next_token == Keyword.ELSE:
             else_body_exp = self._parse_expression(tokenizer)
-            return IfThenElseExpression(
-                cond_exp, body_exp, else_body_exp
-            )
+            return IfThenElseExpression(cond_exp, body_exp, else_body_exp)
         else:
             return IfThenExpression(cond_exp, body_exp)
 
@@ -447,7 +598,7 @@ class TigerParser(object):
         _assert_tkn_val(tokenizer.next(), Keyword.DO)
         body = self._parse_expression(tokenizer)
         return ForExpression(
-            IdentifierNode(id_token.value),
+            Identifier(id_token.value),
             lower_bound,
             upper_bound,
             body,
@@ -477,7 +628,7 @@ class TigerParser(object):
         """
         negation → - exp
         """
-        _assert_tkn_val(tokenizer.next(), Operator.SUB)
+        _assert_tkn_val(tokenizer.next(), OpToken.SUB)
         exp = self._parse_expression(tokenizer)
         return NegationExpression(exp)
 
@@ -497,9 +648,155 @@ class TigerParser(object):
             next_token = tokenizer.next()
         return SeqExpression(exps)
 
+    def _parse_arr_create_or_subscript_expression(
+        self, tokenizer: TigerTokenizer
+    ) -> Union[LValueExpression, ArrCreateExpression, AssignmentExpression]:
+        """
+        arrCreate → tyId [ exp ] of exp
+        subscript → lValue [ exp ]
+        """
+        id_token = tokenizer.next()
+        _assert_identifier(id_token)
+
+        _assert_tkn_val(tokenizer.next(), Punctuation.BRACKET_OPEN)
+        exp = self._parse_expression(tokenizer)
+        _assert_tkn_val(tokenizer.next(), Punctuation.BRACKET_CLOSE)
+        
+        if tokenizer.peek() == Keyword.OF:
+            tokenizer.next()
+            of_exp = self._parse_expression(tokenizer)
+            return ArrCreateExpression(
+                Identifier(id_token.value),
+                exp,
+                of_exp
+            )
+
+        subscript_exp = LValueExpression(
+            SubscriptExpression(
+                LValueExpression(Identifier(id_token.value)),
+                exp,
+            )
+        )
+        return self._parse_rest_of_l_value_expression(subscript_exp, tokenizer)
+
+    def _parse_new_field_expression(
+        self, tokenizer: TigerTokenizer
+    ) -> Union[LValueExpression, AssignmentExpression]:
+        """
+        fieldExp → lValue . id
+        """
+        left_id_token = tokenizer.next()
+        _assert_identifier(left_id_token)
+        _assert_tkn_val(tokenizer.next(), Punctuation.DOT)
+        right_id_token = tokenizer.next()
+        _assert_identifier(right_id_token)
+        field_exp = LValueExpression(
+            FieldExpression(
+                LValueExpression(Identifier(left_id_token.value)),
+                Identifier(right_id_token.value),
+            )
+        )
+        return self._parse_rest_of_l_value_expression(field_exp, tokenizer)
+
+    def _parse_rest_of_l_value_expression(
+        self, l_value: LValueExpression, tokenizer: TigerTokenizer
+    ) -> Union[LValueExpression, AssignmentExpression]:
+        """
+        lValue → id | subscript | fieldExp
+        subscript → lValue [ exp ]
+        fieldExp → lValue . id
+
+        The base case for l-values is an identifier, which is also the
+        left-most token in the expression. This makes it pretty pretty easy to
+        spot a new l-value starting (`a.`, `a[`), but then it may nest
+        indefinitely (e.g. `a.b[c].d`).
+
+        The calling method is responsible for the left-most l-value. This
+        method is for finishing it off.
+        """
+        while tokenizer.peek() in [Punctuation.BRACKET_OPEN, Punctuation.DOT]:
+            next_token = tokenizer.next()
+            if next_token == Punctuation.BRACKET_OPEN:
+                exp = self._parse_expression(tokenizer)
+                l_value = LValueExpression(SubscriptExpression(l_value, exp))
+                _assert_tkn_val(tokenizer.next(), Punctuation.BRACKET_CLOSE)
+            elif next_token == Punctuation.DOT:
+                id_token = tokenizer.next()
+                l_value = LValueExpression(
+                    FieldExpression(l_value, Identifier(id_token.value))
+                )
+
+        if tokenizer.peek() == Punctuation.ASSIGNMENT:
+            return self._parse_assignment_expression(l_value, tokenizer)
+        else:
+            return l_value
+
+    def _parse_assignment_expression(
+        self,
+        l_value: LValueExpression,
+        tokenizer: TigerTokenizer,
+    ) -> AssignmentExpression:
+        """
+        assignment → lValue := exp
+        """
+        _assert_tkn_val(tokenizer.next(), Punctuation.ASSIGNMENT)
+        exp = self._parse_expression(tokenizer)
+        return AssignmentExpression(l_value, exp)
+
+    def _parse_call_expression(
+        self,
+        tokenizer: TigerTokenizer,
+    ) -> CallExpression:
+        """
+        callExp → id ( exp∗, )
+        """
+        id_token = tokenizer.next()
+        _assert_identifier(id_token)
+        _assert_tkn_val(tokenizer.next(), Punctuation.PAREN_OPEN)
+        exps = []
+        next_token = tokenizer.next()
+        while True:
+            if next_token == Punctuation.PAREN_CLOSE:
+                break
+            exps.append(self._parse_expression(tokenizer))
+            next_token = tokenizer.next()
+
+        return CallExpression(Identifier(id_token.value), exps)
+
+    def _parse_rec_create_expression(
+        self,
+        tokenizer: TigerTokenizer,
+    ) -> RecCreateExpression:
+        """
+        recCreate → tyId { fieldCreate∗, }
+        """
+        id_token = tokenizer.next()
+        _assert_identifier(id_token)
+        _assert_tkn_val(tokenizer.next(), Punctuation.CURLY_OPEN)
+        field_creates = []
+        next_token = tokenizer.next()
+        while True:
+            if next_token == Punctuation.CURLY_CLOSE:
+                break
+            field_creates.append(self._parse_field_create(tokenizer))
+            next_token = tokenizer.next()
+        return RecCreateExpression(
+            Identifier(id_token.value),
+            field_creates,
+        )
+
+    def _parse_field_create(
+        self,
+        tokenizer: TigerTokenizer
+    ) -> FieldCreate:
+        id_token = tokenizer.next()
+        _assert_tkn_val(tokenizer.next(), OpToken.EQ)
+        exp = self._parse_expression(tokenizer)
+        return FieldCreate(Identifier(id_token.value), exp)
+
     def _parse_type_declaration(
         self, tokenizer: TigerTokenizer
-    ) -> TypeDecNode:
+    ) -> TypeDeclaration:
         """
         tyDec → type tyId = ty
         """
@@ -508,11 +805,11 @@ class TigerParser(object):
         id_token = tokenizer.next()
         _assert_identifier(id_token)
 
-        _assert_tkn_val(tokenizer.next(), Operator.EQ)
+        _assert_tkn_val(tokenizer.next(), OpToken.EQ)
 
         next_token = tokenizer.peek()
         if next_token.is_identifier:
-            type_node = TypeIdentifierNode(next_token.value)
+            type_node = TypeIdentifier(next_token.value)
         elif next_token == Keyword.ARRAY:
             type_node = self._parse_array_type(tokenizer)
         elif next_token == Punctuation.CURLY_OPEN:
@@ -522,23 +819,34 @@ class TigerParser(object):
                 'Expected type identifier, array type, or record type. '
                 'Found "{}"'.format(next_token)
             )
-        return TypeDecNode(TypeIdentifierNode(id_token.value), type_node)
+        return TypeDeclaration(TypeIdentifier(id_token.value), type_node)
 
-    def _parse_array_type(self, tokenizer: TigerTokenizer) -> ArrayTypeNode:
+    def _parse_array_type(self, tokenizer: TigerTokenizer) -> ArrayType:
         """
         arrTy → array of tyId
         """
-        return ArrayTypeNode()
+        _assert_tkn_val(tokenizer.next(), Keyword.ARRAY)
+        _assert_tkn_val(tokenizer.next(), Keyword.OF)
+        type_id_token = tokenizer.next()
+        return ArrayType(TypeIdentifier(type_id_token.value))
 
-    def _parse_record_type(self, tokenizer: TigerTokenizer) -> RecordTypeNode:
+    def _parse_record_type(self, tokenizer: TigerTokenizer) -> RecType:
         """
         recTy → { fieldDec∗, }
         """
-        return RecordTypeNode()
+        _assert_tkn_val(tokenizer.next(), Punctuation.CURLY_OPEN)
+        field_decs = []
+        next_token = tokenizer.next()
+        while True:
+            if next_token == Punctuation.CURLY_OPEN:
+                break
+            field_decs.append(self._parse_field_declaration(tokenizer))
+            next_token = tokenizer.next()
+        return RecType(field_decs)
 
     def _parse_func_declaration(
         self, tokenizer: TigerTokenizer
-    ) -> FuncDecNode:
+    ) -> FunDeclaration:
         """
         funDec → function id ( fieldDec∗, ) = exp
                 | function id ( fieldDec∗, ) : tyId = exp
@@ -557,16 +865,19 @@ class TigerParser(object):
 
         type_id_node = self._get_type_annotation(tokenizer)
 
-        _assert_tkn_val(tokenizer.next(), Operator.EQ)
+        _assert_tkn_val(tokenizer.next(), OpToken.EQ)
         exp_node = self._parse_expression(tokenizer)
-        return FuncDecNode(
-            IdentifierNode(id_token.value),
+        return FunDeclaration(
+            Identifier(id_token.value),
             field_decs,
             exp_node,
             type_identifier=type_id_node,
         )
 
-    def _parse_var_declaration(self, tokenizer: TigerTokenizer) -> VarDecNode:
+    def _parse_var_declaration(
+        self,
+        tokenizer: TigerTokenizer,
+    ) -> VarDeclaration:
         """
         varDec → var id := exn
                 | var id : tyId := exp
@@ -581,15 +892,15 @@ class TigerParser(object):
         _assert_tkn_val(tokenizer.next(), Punctuation.ASSIGNMENT)
         exp_node = self._parse_expression(tokenizer)
 
-        return VarDecNode(
-            IdentifierNode(id_token.value),
+        return VarDeclaration(
+            Identifier(id_token.value),
             exp_node,
             type_identifier=type_id,
         )
 
     def _parse_field_declaration(
         self, tokenizer: TigerTokenizer
-    ) -> FieldDecNode:
+    ) -> FieldDeclaration:
         """
         fieldDec → id : tyId
         """
@@ -601,4 +912,4 @@ class TigerParser(object):
             raise ParserException(
                 'Field declarations require type annotation.'
             )
-        return FieldDecNode(IdentifierNode(id_token.value), type_id)
+        return FieldDeclaration(Identifier(id_token.value), type_id)
