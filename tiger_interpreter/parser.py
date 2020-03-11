@@ -1,6 +1,6 @@
 import inspect
 from abc import ABC
-from typing import List, Union, Optional
+from typing import List, Union, Optional, Callable
 
 from tiger_interpreter.lexer import (
     Token, Keyword, TigerLexer, Punctuation, Operator as OpToken,
@@ -458,6 +458,29 @@ class TigerParser(object):
         else:
             return None
 
+    @staticmethod
+    def _collect_list(
+        tokenizer: TigerLexer,
+        list_item_parser: Callable[[TigerLexer], AbstractSyntaxTreeNode],
+        termination: Token,
+        separator: Optional[Token] = None,
+    ) -> List[AbstractSyntaxTreeNode]:
+        """
+        Matches the common pattern of a list of items enclosed by some token.
+        Often list items are separated by a token as well.
+
+        E.g. ( exp*, )
+        """
+        items = []
+        while True:
+            if tokenizer.peek() == termination:
+                tokenizer.next()
+                break
+            items.append(list_item_parser(tokenizer))
+            if separator and tokenizer.peek() == separator:
+                tokenizer.next()
+        return items
+
     def parse(self, tokenizer: TigerLexer) -> Program:
         next_token = tokenizer.peek()
         if next_token == Keyword.LET:
@@ -552,13 +575,11 @@ class TigerParser(object):
 
         _assert_tkn_val(next_token, Keyword.IN)
 
-        exps = []
-        next_token = None
-        while True:
-            if next_token == Keyword.END:
-                break
-            exps.append(self._parse_expression(tokenizer))
-            next_token = tokenizer.next()
+        exps = self._collect_list(
+            tokenizer,
+            self._parse_expression,
+            Keyword.END,
+        )
 
         return LetExpression(decs, exps)
 
@@ -763,14 +784,12 @@ class TigerParser(object):
         id_token = tokenizer.next()
         _assert_identifier(id_token)
         _assert_tkn_val(tokenizer.next(), Punctuation.PAREN_OPEN)
-        exps = []
-        while True:
-            if tokenizer.peek() == Punctuation.PAREN_CLOSE:
-                tokenizer.next()
-                break
-            exps.append(self._parse_expression(tokenizer))
-            if tokenizer.peek() == Punctuation.COMMA:
-                tokenizer.next()
+        exps = self._collect_list(
+            tokenizer,
+            self._parse_expression,
+            Punctuation.PAREN_CLOSE,
+            separator=Punctuation.COMMA,
+        )
 
         return CallExpression(Identifier(id_token.value), exps)
 
@@ -784,13 +803,12 @@ class TigerParser(object):
         id_token = tokenizer.next()
         _assert_identifier(id_token)
         _assert_tkn_val(tokenizer.next(), Punctuation.CURLY_OPEN)
-        field_creates = []
-        next_token = tokenizer.next()
-        while True:
-            if next_token == Punctuation.CURLY_CLOSE:
-                break
-            field_creates.append(self._parse_field_create(tokenizer))
-            next_token = tokenizer.next()
+        field_creates = self._collect_list(
+            tokenizer,
+            self._parse_field_create,
+            Punctuation.CURLY_CLOSE,
+            separator=Punctuation.COMMA,
+        )
         return RecCreateExpression(
             Identifier(id_token.value),
             field_creates,
@@ -846,13 +864,12 @@ class TigerParser(object):
         recTy → { fieldDec∗, }
         """
         _assert_tkn_val(tokenizer.next(), Punctuation.CURLY_OPEN)
-        field_decs = []
-        next_token = tokenizer.next()
-        while True:
-            if next_token == Punctuation.CURLY_OPEN:
-                break
-            field_decs.append(self._parse_field_declaration(tokenizer))
-            next_token = tokenizer.next()
+        field_decs = self._collect_list(
+            tokenizer,
+            self._parse_field_declaration,
+            Punctuation.CURLY_CLOSE,
+            separator=Punctuation.COMMA,
+        )
         return RecType(field_decs)
 
     def _parse_func_declaration(

@@ -25,7 +25,6 @@ class TestParser(object):
     def test_hello_world(self, hello_world_lexer):
         parser = TigerParser()
         ast = parser.parse(hello_world_lexer)
-        import pytest; pytest.set_trace()
         assert ast == Program(
             LetExpression(
                 [
