@@ -89,6 +89,10 @@ AbstractSyntaxTreeNode
 """
 
 
+class ParserException(Exception):
+    pass
+
+
 class AbstractSyntaxTreeNode(ABC):
     """
     Both "abstract" in the syntax tree sense and the python sense :)
@@ -117,6 +121,14 @@ class AbstractSyntaxTreeNode(ABC):
             self.__class__.__name__,
             ', '.join(args),
             ', ' + ', '.join(kwargs) if kwargs else '',
+        )
+
+    def __eq__(self, other):
+        if type(other) != type(self):
+            return False
+        return all(
+           getattr(self, p.name, None) == getattr(other, p.name, None)
+           for p in inspect.signature(self.__init__).parameters.values()
         )
 
     def __init__(self, *args, **kwargs):
@@ -409,10 +421,6 @@ class Program(AbstractSyntaxTreeNode):
         super().__init__(expression)
 
 
-class ParserException(Exception):
-    pass
-
-
 def _assert_tkn_val(token: Token, expect_val: Union[str, List[str]]):
     if isinstance(expect_val, list):
         if token not in expect_val:
@@ -446,7 +454,7 @@ class TigerParser(object):
             tokenizer.next()
             type_id_token = tokenizer.next()
             _assert_identifier(type_id_token)
-            return TypeIdentifier(type_id_token)
+            return TypeIdentifier(type_id_token.value)
         else:
             return None
 
@@ -455,7 +463,7 @@ class TigerParser(object):
         if next_token == Keyword.LET:
             return Program(self._parse_let_expression(tokenizer))
         else:
-            # TODO: support programs not wrapped in a let (ie. seq programs)
+            # TODO: support programs not wrapped in a let
             raise NotImplementedError()
 
     def _parse_expression(self, tokenizer: TigerLexer) -> Expression:
@@ -511,14 +519,16 @@ class TigerParser(object):
                 'Unexpected token {}'.format(next_token.value)
             )
         
-        if tokenizer.peek() in OpToken.values:
+        if tokenizer.peek() in OpToken.values():
             op_token = tokenizer.next()
             right_exp = self._parse_expression(tokenizer)
             return InfixExpression(
                 exp,
-                OpToken()
+                Operator(op_token),
+                right_exp,
             )
-            
+        else:
+            return exp
 
     def _parse_let_expression(
         self,
@@ -540,15 +550,15 @@ class TigerParser(object):
             decs.append(dec_node)
             next_token = tokenizer.next()
 
-        _assert_tkn_val(tokenizer.next(), Keyword.IN)
+        _assert_tkn_val(next_token, Keyword.IN)
 
-        next_token = tokenizer.next()
         exps = []
-        while next_token != Keyword.END:
+        next_token = None
+        while True:
+            if next_token == Keyword.END:
+                break
             exps.append(self._parse_expression(tokenizer))
             next_token = tokenizer.next()
-            if next_token == Punctuation.SEMI_COLON:
-                next_token = tokenizer.next()
 
         return LetExpression(decs, exps)
 
@@ -754,12 +764,13 @@ class TigerParser(object):
         _assert_identifier(id_token)
         _assert_tkn_val(tokenizer.next(), Punctuation.PAREN_OPEN)
         exps = []
-        next_token = tokenizer.next()
         while True:
-            if next_token == Punctuation.PAREN_CLOSE:
+            if tokenizer.peek() == Punctuation.PAREN_CLOSE:
+                tokenizer.next()
                 break
             exps.append(self._parse_expression(tokenizer))
-            next_token = tokenizer.next()
+            if tokenizer.peek() == Punctuation.COMMA:
+                tokenizer.next()
 
         return CallExpression(Identifier(id_token.value), exps)
 

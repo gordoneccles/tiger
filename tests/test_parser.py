@@ -1,11 +1,14 @@
 from pytest import fixture
 
-from tiger_interpreter.parser import TigerParser
+from tiger_interpreter.parser import (
+    TigerParser, Program, LetExpression, FunDeclaration, Identifier,
+    CallExpression, StringLiteralExpression
+)
 from tiger_interpreter.lexer import TigerLexer
 
 
 @fixture
-def hello_world_tokenizer():
+def hello_world_lexer():
     let_hello_world = """
     /* Hello-world with function */
     let
@@ -19,6 +22,24 @@ def hello_world_tokenizer():
 
 class TestParser(object):
 
-    def test_hello_world(self, hello_world_tokenizer):
+    def test_hello_world(self, hello_world_lexer):
         parser = TigerParser()
-        ast = parser.parse(hello_world_tokenizer)
+        ast = parser.parse(hello_world_lexer)
+        import pytest; pytest.set_trace()
+        assert ast == Program(
+            LetExpression(
+                [
+                    FunDeclaration(
+                        Identifier('hello'),
+                        [],
+                        CallExpression(
+                            Identifier('print'),
+                            [StringLiteralExpression('Hello, World!\n')],
+                        )
+                    )
+                ],
+                [
+                    CallExpression(Identifier('hello'), [])
+                ]
+            )
+        )
