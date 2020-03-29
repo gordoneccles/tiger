@@ -2,6 +2,7 @@ import inspect
 from abc import ABC
 from typing import List, Union, Optional, Callable
 
+from tiger_pl.common import IsClassMixin
 from tiger_pl.lexer import (
     Token,
     Keyword,
@@ -152,15 +153,16 @@ class AbstractSyntaxTreeNode(ABC):
 
 
 class AbstractIdentifier(AbstractSyntaxTreeNode, ABC):
-    pass
+    def __hash__(self):
+        return hash(self._value)
 
 
-class Declaration(AbstractSyntaxTreeNode):
-    pass
+class Declaration(AbstractSyntaxTreeNode, IsClassMixin):
+    _class_name_base = 'Declaration'
 
 
-class Expression(AbstractSyntaxTreeNode):
-    pass
+class Expression(AbstractSyntaxTreeNode, IsClassMixin):
+    _class_name_base = 'Expression'
 
 
 class Identifier(AbstractIdentifier):
@@ -262,9 +264,7 @@ class IfThenElseExpression(Expression):
 
 
 class WhileExpression(Expression):
-    def __ini__(
-        self, condition: Expression, consequent: Expression,
-    ):
+    def __ini__(self, condition: Expression, consequent: Expression):
         super().__init__(condition, consequent)
 
 
@@ -449,9 +449,6 @@ class TigerParser(object):
             | arrCreate | recCreate | assignment
             | ifThenElse | ifThen | whileExp | forExp
             | break | letExp
-
-        TODO:
-            infixExp → exp infixOp exp
         """
         next_token = lexer.peek()
         if next_token.is_integer_literal:

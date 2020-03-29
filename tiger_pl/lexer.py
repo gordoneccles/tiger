@@ -3,6 +3,25 @@ from abc import abstractmethod, ABC
 from io import StringIO
 from typing import Iterator, Union, Optional
 
+from tiger_pl.common import IsClassMixin
+
+"""
+This class heirarchy is a bit weird. I _wanted_ a single tree with a root
+abstract class named "Token". Under that tree, some token classes are enum-like
+(which use a fancy meta class) and some aren't. However Python doesn't let
+you mix your own metaclass with ABCMeta, so here we are.
+
+
+_AbstractToken,Token
+    Identifier
+    IntegerLiteral
+    StringLiteral
+_AbstractEnumToken,Token
+    Punctuation
+    Operator
+    Keyword
+"""
+
 
 class _AbstractToken(ABC):
     @classmethod
@@ -33,17 +52,7 @@ class _AbstractEnumToken(metaclass=_EnumMeta):
         return cls._values
 
 
-class Token(object):
-    def __getattr__(self, attr_name):
-        """
-        Rather than having to do isinstance(token, SomeToken), this allows
-        for token.is_some_token
-        """
-        if attr_name.startswith("is_"):
-            cls_name = attr_name[3:].title().replace("_", "")
-            return self.__class__.__name__ == cls_name
-
-        raise AttributeError("{} has no attribute {}".format(self, attr_name))
+class Token(IsClassMixin):
 
     def __init__(self, token_value: str):
         if not self.matches(token_value):
